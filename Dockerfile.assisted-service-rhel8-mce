@@ -2,11 +2,6 @@ FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi8/go-toolset:1.21 A
 ARG TARGETOS
 ARG TARGETARCH
 
-ENV USER_UID=0
-RUN INSTALL_PKGS="gcc git nmstate-devel openssl-devel" && \
-    dnf install -y $INSTALL_PKGS && \
-    dnf clean all
-
 ENV COMPONENT_NAME=assisted-service
 ENV COMPONENT_VERSION=2.0.0
 ENV COMPONENT_TAG_EXTENSION=" "
@@ -14,6 +9,12 @@ ENV USER_UID=1001 \
     USER_NAME=assisted-installer
 COPY --chown=${USER_UID} . /app
 WORKDIR /app
+
+USER 0
+RUN INSTALL_PKGS="gcc git nmstate-devel openssl-devel" && \
+    dnf install -y $INSTALL_PKGS && \
+    dnf clean all
+USER ${USER_UID}
 
 ENV GOEXPERIMENT=strictfipsruntime
 ENV BUILD_TAGS="strictfipsruntime"
