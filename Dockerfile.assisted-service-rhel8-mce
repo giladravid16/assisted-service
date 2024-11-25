@@ -34,10 +34,10 @@ ENV USER_UID=1001 \
 
 COPY --from=builder /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem /etc/ssl/certs/ca-bundle.crt
 COPY --from=builder /etc/pki/ca-trust/extracted/openssl/ca-bundle.trust.crt /etc/ssl/certs/ca-bundle.trust.crt
-COPY --from=builder /build/assisted-service /assisted-service
-COPY --from=builder /build/assisted-service-operator /assisted-service-operator
-COPY --from=builder /build/assisted-service-admission /assisted-service-admission
-COPY --from=builder /build/agent-installer-client /usr/local/bin/agent-installer-client
+COPY --from=builder /app/build/assisted-service /assisted-service
+COPY --from=builder /app/build/assisted-service-operator /assisted-service-operator
+COPY --from=builder /app/build/assisted-service-admission /assisted-service-admission
+COPY --from=builder /app/build/agent-installer-client /usr/local/bin/agent-installer-client
 RUN ln -s /usr/local/bin/agent-installer-client /agent-based-installer-register-cluster-and-infraenv
 
 RUN INSTALL_PKGS="libvirt-libs nmstate nmstate-devel nmstate-libs skopeo openshift-clients" && \
