@@ -55,7 +55,7 @@ type ClusterCreateParams struct {
 	// (DEPRECATED) Please use 'control_plane_count' instead. Guaranteed availability of the installed cluster. 'Full' installs a Highly-Available cluster
 	// over multiple master nodes whereas 'None' installs a full cluster over one node.
 	//
-	// Enum: [Full None]
+	// Enum: [Full TNA None]
 	HighAvailabilityMode *string `json:"high_availability_mode,omitempty"`
 
 	// A proxy URL to use for creating HTTP connections outside the cluster.
@@ -386,7 +386,7 @@ var clusterCreateParamsTypeHighAvailabilityModePropEnum []interface{}
 
 func init() {
 	var res []string
-	if err := json.Unmarshal([]byte(`["Full","None"]`), &res); err != nil {
+	if err := json.Unmarshal([]byte(`["Full","TNA","None"]`), &res); err != nil {
 		panic(err)
 	}
 	for _, v := range res {
@@ -398,6 +398,9 @@ const (
 
 	// ClusterCreateParamsHighAvailabilityModeFull captures enum value "Full"
 	ClusterCreateParamsHighAvailabilityModeFull string = "Full"
+
+	// ClusterCreateParamsHighAvailabilityModeTNA captures enum value "TNA"
+	ClusterCreateParamsHighAvailabilityModeTNA string = "TNA"
 
 	// ClusterCreateParamsHighAvailabilityModeNone captures enum value "None"
 	ClusterCreateParamsHighAvailabilityModeNone string = "None"

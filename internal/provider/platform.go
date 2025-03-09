@@ -257,7 +257,7 @@ func GetActualUpdateClusterPlatformParams(platform *models.Platform, userManaged
 }
 
 func GetClusterPlatformByHighAvailabilityMode(platform *models.Platform, userManagedNetworking *bool, highAvailabilityMode *string) (*models.Platform, *bool, error) {
-	if swag.StringValue(highAvailabilityMode) == models.ClusterHighAvailabilityModeFull {
+	if swag.StringValue(highAvailabilityMode) == models.ClusterHighAvailabilityModeFull || swag.StringValue(highAvailabilityMode) == models.ClusterHighAvailabilityModeTNA {
 		if (platform == nil || isPlatformBM(platform)) && !swag.BoolValue(userManagedNetworking) {
 			return createPlatformFromType(models.PlatformTypeBaremetal), swag.Bool(false), nil
 		}

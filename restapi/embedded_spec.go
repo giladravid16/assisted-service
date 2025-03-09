@@ -1446,6 +1446,7 @@ func init() {
           {
             "enum": [
               "master",
+              "arbiter",
               "worker",
               "auto-assign"
             ],
@@ -6403,6 +6404,7 @@ func init() {
           "default": "Full",
           "enum": [
             "Full",
+            "TNA",
             "None"
           ]
         },
@@ -6775,6 +6777,7 @@ func init() {
           "default": "Full",
           "enum": [
             "Full",
+            "TNA",
             "None"
           ]
         },
@@ -8364,7 +8367,8 @@ func init() {
         "auto-assign",
         "master",
         "worker",
-        "bootstrap"
+        "bootstrap",
+        "arbiter"
       ]
     },
     "host-role-update-params": {
@@ -8372,6 +8376,7 @@ func init() {
       "enum": [
         "auto-assign",
         "master",
+        "arbiter",
         "worker"
       ]
     },
@@ -8448,6 +8453,7 @@ func init() {
           "enum": [
             "auto-assign",
             "master",
+            "arbiter",
             "worker"
           ],
           "x-nullable": true
@@ -9121,6 +9127,7 @@ func init() {
           "default": "Full",
           "enum": [
             "Full",
+            "TNA",
             "None"
           ]
         },
@@ -12407,6 +12414,7 @@ func init() {
           {
             "enum": [
               "master",
+              "arbiter",
               "worker",
               "auto-assign"
             ],
@@ -17487,6 +17495,7 @@ func init() {
           "default": "Full",
           "enum": [
             "Full",
+            "TNA",
             "None"
           ]
         },
@@ -17859,6 +17868,7 @@ func init() {
           "default": "Full",
           "enum": [
             "Full",
+            "TNA",
             "None"
           ]
         },
@@ -19415,7 +19425,8 @@ func init() {
         "auto-assign",
         "master",
         "worker",
-        "bootstrap"
+        "bootstrap",
+        "arbiter"
       ]
     },
     "host-role-update-params": {
@@ -19423,6 +19434,7 @@ func init() {
       "enum": [
         "auto-assign",
         "master",
+        "arbiter",
         "worker"
       ]
     },
@@ -19499,6 +19511,7 @@ func init() {
           "enum": [
             "auto-assign",
             "master",
+            "arbiter",
             "worker"
           ],
           "x-nullable": true
@@ -20174,6 +20187,7 @@ func init() {
           "default": "Full",
           "enum": [
             "Full",
+            "TNA",
             "None"
           ]
         },

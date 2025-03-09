@@ -91,7 +91,7 @@ type Cluster struct {
 	// Guaranteed availability of the installed cluster. 'Full' installs a Highly-Available cluster
 	// over multiple master nodes whereas 'None' installs a full cluster over one node.
 	//
-	// Enum: [Full None]
+	// Enum: [Full TNA None]
 	HighAvailabilityMode *string `json:"high_availability_mode,omitempty"`
 
 	// List of host networks to be filled during query.
@@ -649,7 +649,7 @@ var clusterTypeHighAvailabilityModePropEnum []interface{}
 
 func init() {
 	var res []string
-	if err := json.Unmarshal([]byte(`["Full","None"]`), &res); err != nil {
+	if err := json.Unmarshal([]byte(`["Full","TNA","None"]`), &res); err != nil {
 		panic(err)
 	}
 	for _, v := range res {
@@ -661,6 +661,9 @@ const (
 
 	// ClusterHighAvailabilityModeFull captures enum value "Full"
 	ClusterHighAvailabilityModeFull string = "Full"
+
+	// ClusterHighAvailabilityModeTNA captures enum value "TNA"
+	ClusterHighAvailabilityModeTNA string = "TNA"
 
 	// ClusterHighAvailabilityModeNone captures enum value "None"
 	ClusterHighAvailabilityModeNone string = "None"

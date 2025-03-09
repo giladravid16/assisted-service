@@ -169,28 +169,32 @@ var _ = Describe("Bootstrap Ignition Update", func() {
 				},
 			}
 		})
-		test := func(masters, workers []*models.Host, masterExpected bool) {
+		test := func(masters, workers, arbiters []*models.Host, role models.HostRole) {
 			masterHostnames := getHostnames(masters)
 			workerHostnames := getHostnames(workers)
+			arbiterHostnames := getHostnames(arbiters)
 			Expect(err).ToNot(HaveOccurred())
 			for i := range config.Storage.Files {
 				if isBMHFile(&config.Storage.Files[i]) {
 					bmhFile, err2 := fileToBMH(&config.Storage.Files[i]) //nolint,shadow
 					Expect(err2).ToNot(HaveOccurred())
-					Expect(bmhIsMaster(bmhFile, masterHostnames, workerHostnames)).To(Equal(masterExpected))
+					Expect(getBmhRole(bmhFile, masterHostnames, workerHostnames, arbiterHostnames)).To(Equal(role))
 					return
 				}
 			}
 			Fail("No BMH file found")
 		}
 		It("Set as master by hostname", func() {
-			test(hosts, nil, true)
+			test(hosts, nil, nil, models.HostRoleMaster)
 		})
 		It("Set as worker by hostname", func() {
-			test(nil, hosts, false)
+			test(nil, hosts, nil, models.HostRoleWorker)
+		})
+		It("Set as arbiter by hostname", func() {
+			test(nil, nil, hosts, models.HostRoleArbiter)
 		})
 		It("Set as master by backward compatibility", func() {
-			test(nil, nil, true)
+			test(nil, nil, nil, models.HostRoleMaster)
 		})
 	})
 
@@ -254,6 +258,7 @@ SV4bRR9i0uf+xQ/oYRvugQ25Q7EahO5hJIWRf4aULbk36Zpw3++v2KFnF26zqwB6
 	var (
 		masterPath     string
 		workerPath     string
+		arbiterPath    string
 		caCertPath     string
 		dbName         string
 		db             *gorm.DB
@@ -272,9 +277,12 @@ SV4bRR9i0uf+xQ/oYRvugQ25Q7EahO5hJIWRf4aULbk36Zpw3++v2KFnF26zqwB6
 
 		masterPath = filepath.Join(workDir, "master.ign")
 		workerPath = filepath.Join(workDir, "worker.ign")
+		arbiterPath = filepath.Join(workDir, "arbiter.ign")
 		err = os.WriteFile(masterPath, []byte(ignition), 0600)
 		Expect(err).NotTo(HaveOccurred())
 		err = os.WriteFile(workerPath, []byte(ignition), 0600)
+		Expect(err).NotTo(HaveOccurred())
+		err = os.WriteFile(arbiterPath, []byte(ignition), 0600)
 		Expect(err).NotTo(HaveOccurred())
 
 		caCertPath = filepath.Join(workDir, "service-ca-cert.crt")

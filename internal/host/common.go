@@ -212,7 +212,7 @@ func FindMatchingStages(role models.HostRole, bootstrap, isSNO bool) []models.Ho
 		} else {
 			stages = BootstrapStages[:]
 		}
-	case role == models.HostRoleMaster:
+	case role == models.HostRoleMaster || role == models.HostRoleArbiter:
 		stages = MasterStages[:]
 	case role == models.HostRoleWorker:
 		stages = WorkerStages[:]

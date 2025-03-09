@@ -51,6 +51,7 @@ import (
 const (
 	masterIgn      = "master.ign"
 	workerIgn      = "worker.ign"
+	arbiterIgn     = "arbiter.ign"
 	nodeIpHintFile = "/etc/default/nodeip-configuration"
 )
 
@@ -726,7 +727,7 @@ func (g *installerGenerator) updateBootstrap(ctx context.Context, bootstrapPath 
 
 	newFiles := []config_latest_types.File{}
 
-	masters, workers := sortHosts(g.cluster.Hosts)
+	masters, workers, arbiters := sortHosts(g.cluster.Hosts)
 	for i, file := range config.Storage.Files {
 		switch {
 		case isBaremetalProvisioningConfig(&config.Storage.Files[i]):
@@ -749,19 +750,26 @@ func (g *installerGenerator) updateBootstrap(ctx context.Context, bootstrapPath 
 			var host *models.Host
 			masterHostnames := getHostnames(masters)
 			workerHostnames := getHostnames(workers)
+			arbiterHostnames := getHostnames(arbiters)
 
 			// The BMH files in the ignition are sorted according to hostname (please see the implementation in installcfg/installcfg.go).
 			// The masters and workers are also sorted by hostname.  This enables us to correlate correctly the host and the BMH file
-			if bmhIsMaster(bmh, masterHostnames, workerHostnames) {
+			role := getBmhRole(bmh, masterHostnames, workerHostnames, arbiterHostnames)
+			if role == models.HostRoleMaster {
 				if len(masters) == 0 {
 					return errors.Errorf("Not enough registered masters to match with BareMetalHosts")
 				}
 				host, masters = masters[0], masters[1:]
-			} else {
+			} else if role == models.HostRoleWorker {
 				if len(workers) == 0 {
 					return errors.Errorf("Not enough registered workers to match with BareMetalHosts")
 				}
 				host, workers = workers[0], workers[1:]
+			} else {
+				if len(arbiters) == 0 {
+					return errors.Errorf("Not enough registered arbiters to match with BareMetalHosts")
+				}
+				host, arbiters = arbiters[0], arbiters[1:]
 			}
 
 			// modify bmh
@@ -912,8 +920,7 @@ func (g *installerGenerator) modifyBMHFile(file *config_latest_types.File, bmh *
 	return nil
 }
 
-func (g *installerGenerator) updateDhcpFiles() error {
-	path := filepath.Join(g.workDir, masterIgn)
+func (g *installerGenerator) updateDhcpFiles(path string) error {
 	config, err := parseIgnitionFile(path)
 	if err != nil {
 		return err
@@ -970,7 +977,7 @@ func (g *installerGenerator) updateIgnitions() error {
 	}
 
 	if g.encodedDhcpFileContents != "" {
-		if err := g.updateDhcpFiles(); err != nil {
+		if err := g.updateDhcpFiles(masterPath); err != nil {
 			return errors.Wrapf(err, "error adding DHCP file to ignition %s", masterPath)
 		}
 	}
@@ -983,12 +990,35 @@ func (g *installerGenerator) updateIgnitions() error {
 		}
 	}
 
+	arbiterPath := filepath.Join(g.workDir, arbiterIgn)
+	isArbiterExist := false
+	if _, err := os.Stat(arbiterPath); err == nil {
+		isArbiterExist = true
+	}
+	if isArbiterExist {
+		if caCertFile != "" {
+			err := setCACertInIgnition(models.HostRoleArbiter, arbiterPath, g.workDir, caCertFile)
+			if err != nil {
+				return errors.Wrapf(err, "error adding CA cert to ignition %s", arbiterPath)
+			}
+		}
+		if g.encodedDhcpFileContents != "" {
+			if err := g.updateDhcpFiles(arbiterPath); err != nil {
+				return errors.Wrapf(err, "error adding DHCP file to ignition %s", arbiterPath)
+			}
+		}
+	}
+
 	_, ipv6, err := network.GetClusterAddressStack(g.cluster.Hosts)
 	if err != nil {
 		return err
 	}
 	if ipv6 {
-		for _, ignition := range []string{masterIgn, workerIgn} {
+		ignitions := []string{masterIgn, workerIgn}
+		if isArbiterExist {
+			ignitions = append(ignitions, arbiterIgn)
+		}
+		for _, ignition := range ignitions {
 			if err = g.addIpv6FileInIgnition(ignition); err != nil {
 				return err
 			}
@@ -1210,7 +1240,7 @@ func (g *installerGenerator) writeHostFiles(hosts []*models.Host, baseFile strin
 
 // createHostIgnitions builds an ignition file for each host in the cluster based on the generated <role>.ign file
 func (g *installerGenerator) createHostIgnitions() error {
-	masters, workers := sortHosts(g.cluster.Hosts)
+	masters, workers, arbiters := sortHosts(g.cluster.Hosts)
 
 	err := g.writeHostFiles(masters, masterIgn, g.workDir)
 	if err != nil {
@@ -1220,6 +1250,13 @@ func (g *installerGenerator) createHostIgnitions() error {
 	err = g.writeHostFiles(workers, workerIgn, g.workDir)
 	if err != nil {
 		return errors.Wrapf(err, "error writing worker host ignition files")
+	}
+
+	if funk.NotEmpty(arbiters) {
+		err = g.writeHostFiles(arbiters, arbiterIgn, g.workDir)
+		if err != nil {
+			return errors.Wrapf(err, "error writing arbiter host ignition files")
+		}
 	}
 
 	return nil
@@ -1274,6 +1311,9 @@ func uploadToS3(ctx context.Context, workDir string, cluster *common.Cluster, s3
 	for _, host := range cluster.Hosts {
 		toUpload = append(toUpload, hostutil.IgnitionFileName(host))
 	}
+	if common.IsClusterTopologyHighlyAvailableArbiter(cluster) {
+		toUpload = append(toUpload, arbiterIgn)
+	}
 
 	for _, fileName := range toUpload {
 		fullPath := filepath.Join(workDir, fileName)
@@ -1302,16 +1342,22 @@ func getHostnames(hosts []*models.Host) []string {
 
 }
 
-func bmhIsMaster(bmh *bmh_v1alpha1.BareMetalHost, masterHostnames, workerHostnames []string) bool {
+func getBmhRole(bmh *bmh_v1alpha1.BareMetalHost, masterHostnames, workerHostnames, arbiterHostnames []string) models.HostRole {
 	if funk.ContainsString(masterHostnames, bmh.Name) {
-		return true
+		return models.HostRoleMaster
 	}
 	if funk.ContainsString(workerHostnames, bmh.Name) {
-		return false
+		return models.HostRoleWorker
+	}
+	if funk.ContainsString(arbiterHostnames, bmh.Name) {
+		return models.HostRoleArbiter
 	}
 
-	// For backward compatibility in case the name is not in the (masterHostnames, workerHostnames)
-	return strings.Contains(bmh.Name, "-master-")
+	// For backward compatibility in case the name is not in the (masterHostnames, workerHostnames, arbiterHostnames)
+	if strings.Contains(bmh.Name, "-master-") {
+		return models.HostRoleMaster
+	}
+	return models.HostRoleWorker
 }
 
 // ExtractClusterID gets a local path of a "bootstrap.ign" file and extracts the OpenShift cluster ID
@@ -1389,13 +1435,16 @@ func encodeIpv6Contents(config string) string {
 }
 
 // sortHosts sorts hosts into masters and workers, excluding disabled hosts
-func sortHosts(hosts []*models.Host) ([]*models.Host, []*models.Host) {
+func sortHosts(hosts []*models.Host) ([]*models.Host, []*models.Host, []*models.Host) {
 	masters := []*models.Host{}
 	workers := []*models.Host{}
+	arbiters := []*models.Host{}
 	for i := range hosts {
 		switch {
 		case common.GetEffectiveRole(hosts[i]) == models.HostRoleMaster:
 			masters = append(masters, hosts[i])
+		case common.GetEffectiveRole(hosts[i]) == models.HostRoleArbiter:
+			arbiters = append(arbiters, hosts[i])
 		default:
 			workers = append(workers, hosts[i])
 		}
@@ -1408,7 +1457,10 @@ func sortHosts(hosts []*models.Host) ([]*models.Host, []*models.Host) {
 	sort.SliceStable(workers, func(i, j int) bool {
 		return hostutil.GetHostnameForMsg(workers[i]) < hostutil.GetHostnameForMsg(workers[j])
 	})
-	return masters, workers
+	sort.SliceStable(arbiters, func(i, j int) bool {
+		return hostutil.GetHostnameForMsg(arbiters[i]) < hostutil.GetHostnameForMsg(arbiters[j])
+	})
+	return masters, workers, arbiters
 }
 
 func setNMConfigration(config *config_latest_types.Config) {

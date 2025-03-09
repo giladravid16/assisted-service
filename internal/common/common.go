@@ -701,3 +701,7 @@ func IsMirrorConfigurationSet(conf *MirrorRegistryConfiguration) bool {
 
 	return false
 }
+
+func IsClusterTopologyHighlyAvailableArbiter(cluster *Cluster) bool {
+	return funk.NotEmpty(GetHostsByRole(cluster, models.HostRoleArbiter))
+}

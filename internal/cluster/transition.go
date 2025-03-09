@@ -526,9 +526,11 @@ func (th *transitionHandler) enoughMastersAndWorkers(sCluster *stateCluster, sta
 	numberOfExpectedMasters := len(masters)
 
 	// validate masters
-	if numberOfExpectedMasters < common.MinMasterHostsNeededForInstallationInHaMode ||
-		mastersInSomeInstallingStatus < numberOfExpectedMasters {
-		return false
+	if swag.StringValue(sCluster.cluster.HighAvailabilityMode) == models.ClusterHighAvailabilityModeFull {
+		if numberOfExpectedMasters < common.MinMasterHostsNeededForInstallationInHaMode ||
+			mastersInSomeInstallingStatus < numberOfExpectedMasters {
+			return false
+		}
 	}
 
 	numberOfExpectedWorkers := len(workers)
