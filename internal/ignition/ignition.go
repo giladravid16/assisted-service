@@ -6,9 +6,9 @@ import (
 
 	"github.com/coreos/ignition/v2/config/merge"
 	config_31 "github.com/coreos/ignition/v2/config/v3_1"
-	config_latest "github.com/coreos/ignition/v2/config/v3_2"
-	config_latest_trans "github.com/coreos/ignition/v2/config/v3_2/translate"
-	config_latest_types "github.com/coreos/ignition/v2/config/v3_2/types"
+	config_latest "github.com/coreos/ignition/v2/config/v3_3"
+	//config_latest_trans "github.com/coreos/ignition/v2/config/v3_3/translate"
+	config_latest_types "github.com/coreos/ignition/v2/config/v3_3/types"
 	"github.com/coreos/vcontext/report"
 	"github.com/pkg/errors"
 )
@@ -17,17 +17,17 @@ import (
 // as v3.1. This is in order to support the latest possible Ignition as well as to preserve
 // backwards-compatibility with OCP 4.6 that supports only Ignition up to v3.1
 func ParseToLatest(content []byte) (*config_latest_types.Config, error) {
-	config, _, err := config_latest.Parse(content)
+	config, report, err := config_latest.Parse(content)
 	if err != nil {
 		// TODO(deprecate-ignition-3.1.0)
 		// We always want to work with the object of the type v3.2 but carry a value of v3.1 inside.
 		// For this reason we are translating the config to v3.2 and manually override the Version.
-		configBackwards, report, err := config_31.Parse(content)
-		if err != nil {
-			return nil, errors.Errorf("error parsing ignition: %v, error report: %s", err, report.String())
-		}
-		config = config_latest_trans.Translate(configBackwards)
-		config.Ignition.Version = "3.1.0"
+		//configBackwards, report, err := config_31.Parse(content)
+		//if err != nil {
+		return nil, errors.Errorf("error parsing ignition: %v, error report: %s", err, report.String())
+		//}
+		//config = config_latest_trans.Translate(configBackwards)
+		//config.Ignition.Version = "3.1.0"
 	}
 	return &config, nil
 }

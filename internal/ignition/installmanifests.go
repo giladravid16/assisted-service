@@ -15,7 +15,7 @@ import (
 	"sort"
 	"strings"
 
-	config_latest_types "github.com/coreos/ignition/v2/config/v3_2/types"
+	config_latest_types "github.com/coreos/ignition/v2/config/v3_3/types"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
 	"github.com/google/uuid"
@@ -1148,6 +1148,17 @@ func (g *installerGenerator) writeSingleHostFile(host *models.Host, baseFile str
 			setFileInIgnition(config, nodeIpHintFile, fmt.Sprintf("data:,KUBELET_NODEIP_HINT=%s", allocation.HintIp), false, 420, true)
 			g.log.Infof("Set KUBELET_NODEIP_HINT=%s for host %s", allocation.HintIp, lo.FromPtr(host.ID))
 		}
+	}
+
+	installationDisk, err := hostutil.GetHostInstallationDisk(host)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get host installation disk")
+	}
+	if installationDisk.DriveType == models.DriveTypeRAID {
+		if config.KernelArguments.ShouldExist == nil {
+			config.KernelArguments.ShouldExist = make([]config_latest_types.KernelArgument, 0)
+		}
+		config.KernelArguments.ShouldExist = append(config.KernelArguments.ShouldExist, "rd.md=1", "rd.auto=1")
 	}
 
 	configBytes, err := json.Marshal(config)
