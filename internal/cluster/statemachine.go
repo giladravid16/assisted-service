@@ -135,6 +135,11 @@ func NewClusterStateMachine(th TransitionHandler) stateswitch.StateMachine {
 		If(IsOpenShiftAIRequirementsSatisfied),
 		If(IsAuthorinoRequirementsSatisfied),
 		If(IsNmstateRequirementsSatisfied),
+		If(IsAMDGPURequirementsSatisfied),
+		If(IsKMMRequirementsSatisfied),
+		If(AreNodeHealthcheckRequirementsSatisfied),
+		If(AreSelfNodeRemediationRequirementsSatisfied),
+		If(AreFenceAgentsRemediationRequirementsSatisfied),
 	)
 
 	// Refresh cluster status conditions - Non DHCP

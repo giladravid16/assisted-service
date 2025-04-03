@@ -185,7 +185,7 @@ func GetBootstrapHost(cluster *Cluster) *models.Host {
 }
 
 func IsSingleNodeCluster(cluster *Cluster) bool {
-	return swag.StringValue(cluster.HighAvailabilityMode) == models.ClusterHighAvailabilityModeNone
+	return cluster.ControlPlaneCount == 1
 }
 
 func IsDay2Cluster(cluster *Cluster) bool {
@@ -416,6 +416,42 @@ func VerifyCaBundle(pemCerts []byte) error {
 	}
 
 	return nil
+}
+
+// RemoveDuplicatesFromCaBundle removes duplicate certificates from a given CA bundle.
+func RemoveDuplicatesFromCaBundle(caBundle string) (string, int, error) {
+	// Parse certificates
+	certs, ok := ParsePemCerts([]byte(caBundle))
+	if !ok {
+		return "", 0, errors.New("failed to remove duplicate certificate")
+	}
+
+	// Remove duplicates by serial number
+	uniqueCerts := funk.UniqBy(certs, func(cert x509.Certificate) string {
+		return fmt.Sprintf("%x", cert.SerialNumber)
+	})
+
+	// Convert certs back to a string
+	certStrings := funk.Map(uniqueCerts, func(cert x509.Certificate) string {
+		// Encode certificate to PEM format
+		block := &pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: cert.Raw,
+		}
+		var sb strings.Builder
+		if err := pem.Encode(&sb, block); err != nil {
+			// Error encoding certificate
+			return ""
+		}
+		return sb.String()
+	})
+
+	numOfCerts := len(certs)
+	numOfUniqueCerts := len(uniqueCerts.([]x509.Certificate))
+	numOfDuplicates := numOfCerts - numOfUniqueCerts
+
+	// Join the PEM-encoded certificates into a single string
+	return strings.Join(certStrings.([]string), "\n"), numOfDuplicates, nil
 }
 
 func CanonizeStrings(slice []string) (ret []string) {
@@ -682,7 +718,7 @@ func GetHostsByEachRole(cluster *models.Cluster, effectiveRoles bool) ([]*models
 }
 
 func ShouldMastersBeSchedulable(cluster *models.Cluster) bool {
-	if swag.StringValue(cluster.HighAvailabilityMode) == models.ClusterCreateParamsHighAvailabilityModeNone {
+	if cluster.ControlPlaneCount == 1 {
 		return true
 	}
 
@@ -700,4 +736,33 @@ func IsMirrorConfigurationSet(conf *MirrorRegistryConfiguration) bool {
 	}
 
 	return false
+}
+
+func GetDefaultHighAvailabilityAndMasterCountParams(highAvailabilityMode *string, controlPlaneCount *int64) (*string, *int64) {
+	// Both not set, multi node by default
+	if highAvailabilityMode == nil && controlPlaneCount == nil {
+		return swag.String(models.ClusterCreateParamsHighAvailabilityModeFull),
+			swag.Int64(MinMasterHostsNeededForInstallationInHaMode)
+	}
+
+	// only highAvailabilityMode set
+	if controlPlaneCount == nil {
+		if *highAvailabilityMode == models.ClusterHighAvailabilityModeNone {
+			return highAvailabilityMode, swag.Int64(AllowedNumberOfMasterHostsInNoneHaMode)
+		}
+
+		return highAvailabilityMode, swag.Int64(MinMasterHostsNeededForInstallationInHaMode)
+	}
+
+	// only controlPlaneCount set
+	if highAvailabilityMode == nil {
+		if *controlPlaneCount == AllowedNumberOfMasterHostsInNoneHaMode {
+			return swag.String(models.ClusterHighAvailabilityModeNone), controlPlaneCount
+		}
+
+		return swag.String(models.ClusterHighAvailabilityModeFull), controlPlaneCount
+	}
+
+	// both are set
+	return highAvailabilityMode, controlPlaneCount
 }

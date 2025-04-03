@@ -6000,20 +6000,28 @@ func init() {
               "items": {
                 "type": "string",
                 "enum": [
+                  "amd-gpu",
                   "lso",
                   "mtv",
-                  "openshift_ai",
+                  "openshift-ai",
                   "osc",
                   "servicemesh",
                   "authorino",
                   "cnv",
-                  "nvidia_gpu",
+                  "nvidia-gpu",
                   "pipelines",
                   "odf",
                   "lvm",
                   "mce",
-                  "node_feature_discovery",
-                  "serverless"
+                  "node-feature-discovery",
+                  "serverless",
+                  "nmstate",
+                  "kmm",
+                  "node-healthcheck",
+                  "self-node-remediation",
+                  "fence-agents-remediation",
+                  "node-maintenance",
+                  "kube-descheduler"
                 ]
               }
             }
@@ -6398,7 +6406,7 @@ func init() {
           "x-go-custom-tag": "gorm:\"type:text\""
         },
         "high_availability_mode": {
-          "description": "Guaranteed availability of the installed cluster. 'Full' installs a Highly-Available cluster\nover multiple master nodes whereas 'None' installs a full cluster over one node.\n",
+          "description": "(DEPRECATED) Please use 'control_plane_count' instead. Guaranteed availability of the installed cluster. 'Full' installs a Highly-Available cluster\nover multiple master nodes whereas 'None' installs a full cluster over one node.\n",
           "type": "string",
           "default": "Full",
           "enum": [
@@ -7053,7 +7061,14 @@ func init() {
         "serverless-requirements-satisfied",
         "openshift-ai-requirements-satisfied",
         "authorino-requirements-satisfied",
-        "nmstate-requirements-satisfied"
+        "nmstate-requirements-satisfied",
+        "amd-gpu-requirements-satisfied",
+        "kmm-requirements-satisfied",
+        "node-healthcheck-requirements-satisfied",
+        "self-node-remediation-requirements-satisfied",
+        "fence-agents-remediation-requirements-satisfied",
+        "node-maintenance-requirements-satisfied",
+        "kube-descheduler-requirements-satisfied"
       ]
     },
     "cluster_default_config": {
@@ -7907,7 +7922,14 @@ func init() {
         "NON_STANDARD_HA_CONTROL_PLANE",
         "AUTHORINO",
         "USER_MANAGED_LOAD_BALANCER",
-        "NMSTATE"
+        "NMSTATE",
+        "AMD_GPU",
+        "KMM",
+        "NODE_HEALTHCHECK",
+        "SELF_NODE_REMEDIATION",
+        "FENCE_AGENTS_REMEDIATION",
+        "NODE_MAINTENANCE",
+        "KUBE_DESCHEDULER"
       ]
     },
     "finalizing-stage": {
@@ -8534,7 +8556,14 @@ func init() {
         "openshift-ai-requirements-satisfied",
         "authorino-requirements-satisfied",
         "mtu-valid",
-        "nmstate-requirements-satisfied"
+        "nmstate-requirements-satisfied",
+        "amd-gpu-requirements-satisfied",
+        "kmm-requirements-satisfied",
+        "node-healthcheck-requirements-satisfied",
+        "self-node-remediation-requirements-satisfied",
+        "fence-agents-remediation-requirements-satisfied",
+        "node-maintenance-requirements-satisfied",
+        "kube-descheduler-requirements-satisfied"
       ]
     },
     "host_network": {
@@ -9114,15 +9143,6 @@ func init() {
         "enable_skip_mco_reboot": {
           "description": "If true, assisted service will attempt to skip MCO reboot",
           "type": "boolean"
-        },
-        "high_availability_mode": {
-          "description": "Guaranteed availability of the installed cluster. 'Full' installs a Highly-Available cluster\nover multiple master nodes whereas 'None' installs a full cluster over one node.\n",
-          "type": "string",
-          "default": "Full",
-          "enum": [
-            "Full",
-            "None"
-          ]
         },
         "host_id": {
           "description": "Host id",
@@ -16966,20 +16986,28 @@ func init() {
               "items": {
                 "type": "string",
                 "enum": [
+                  "amd-gpu",
                   "lso",
                   "mtv",
-                  "openshift_ai",
+                  "openshift-ai",
                   "osc",
                   "servicemesh",
                   "authorino",
                   "cnv",
-                  "nvidia_gpu",
+                  "nvidia-gpu",
                   "pipelines",
                   "odf",
                   "lvm",
                   "mce",
-                  "node_feature_discovery",
-                  "serverless"
+                  "node-feature-discovery",
+                  "serverless",
+                  "nmstate",
+                  "kmm",
+                  "node-healthcheck",
+                  "self-node-remediation",
+                  "fence-agents-remediation",
+                  "node-maintenance",
+                  "kube-descheduler"
                 ]
               }
             }
@@ -17482,7 +17510,7 @@ func init() {
           "x-go-custom-tag": "gorm:\"type:text\""
         },
         "high_availability_mode": {
-          "description": "Guaranteed availability of the installed cluster. 'Full' installs a Highly-Available cluster\nover multiple master nodes whereas 'None' installs a full cluster over one node.\n",
+          "description": "(DEPRECATED) Please use 'control_plane_count' instead. Guaranteed availability of the installed cluster. 'Full' installs a Highly-Available cluster\nover multiple master nodes whereas 'None' installs a full cluster over one node.\n",
           "type": "string",
           "default": "Full",
           "enum": [
@@ -18137,7 +18165,14 @@ func init() {
         "serverless-requirements-satisfied",
         "openshift-ai-requirements-satisfied",
         "authorino-requirements-satisfied",
-        "nmstate-requirements-satisfied"
+        "nmstate-requirements-satisfied",
+        "amd-gpu-requirements-satisfied",
+        "kmm-requirements-satisfied",
+        "node-healthcheck-requirements-satisfied",
+        "self-node-remediation-requirements-satisfied",
+        "fence-agents-remediation-requirements-satisfied",
+        "node-maintenance-requirements-satisfied",
+        "kube-descheduler-requirements-satisfied"
       ]
     },
     "cluster_default_config": {
@@ -18958,7 +18993,14 @@ func init() {
         "NON_STANDARD_HA_CONTROL_PLANE",
         "AUTHORINO",
         "USER_MANAGED_LOAD_BALANCER",
-        "NMSTATE"
+        "NMSTATE",
+        "AMD_GPU",
+        "KMM",
+        "NODE_HEALTHCHECK",
+        "SELF_NODE_REMEDIATION",
+        "FENCE_AGENTS_REMEDIATION",
+        "NODE_MAINTENANCE",
+        "KUBE_DESCHEDULER"
       ]
     },
     "finalizing-stage": {
@@ -19585,7 +19627,14 @@ func init() {
         "openshift-ai-requirements-satisfied",
         "authorino-requirements-satisfied",
         "mtu-valid",
-        "nmstate-requirements-satisfied"
+        "nmstate-requirements-satisfied",
+        "amd-gpu-requirements-satisfied",
+        "kmm-requirements-satisfied",
+        "node-healthcheck-requirements-satisfied",
+        "self-node-remediation-requirements-satisfied",
+        "fence-agents-remediation-requirements-satisfied",
+        "node-maintenance-requirements-satisfied",
+        "kube-descheduler-requirements-satisfied"
       ]
     },
     "host_network": {
@@ -20167,15 +20216,6 @@ func init() {
         "enable_skip_mco_reboot": {
           "description": "If true, assisted service will attempt to skip MCO reboot",
           "type": "boolean"
-        },
-        "high_availability_mode": {
-          "description": "Guaranteed availability of the installed cluster. 'Full' installs a Highly-Available cluster\nover multiple master nodes whereas 'None' installs a full cluster over one node.\n",
-          "type": "string",
-          "default": "Full",
-          "enum": [
-            "Full",
-            "None"
-          ]
         },
         "host_id": {
           "description": "Host id",

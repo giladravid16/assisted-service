@@ -243,7 +243,6 @@ func (feature *VsphereIntegrationFeature) getIncompatibleFeatures(openshiftVersi
 		models.FeatureSupportLevelIDMTV,
 		models.FeatureSupportLevelIDNONSTANDARDHACONTROLPLANE,
 		models.FeatureSupportLevelIDOSC,
-		models.FeatureSupportLevelIDUSERMANAGEDLOADBALANCER,
 	}
 
 	if isNotSupported, err := common.BaseVersionLessThan("4.13", openshiftVersion); isNotSupported || err != nil {
@@ -300,6 +299,8 @@ func (feature *OciIntegrationFeature) getIncompatibleFeatures(string) *[]models.
 		models.FeatureSupportLevelIDNONSTANDARDHACONTROLPLANE,
 		models.FeatureSupportLevelIDUSERMANAGEDLOADBALANCER,
 		models.FeatureSupportLevelIDNMSTATE,
+		models.FeatureSupportLevelIDODF,
+		models.FeatureSupportLevelIDOPENSHIFTAI,
 	}
 }
 

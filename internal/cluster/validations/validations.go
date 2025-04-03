@@ -2,7 +2,6 @@ package validations
 
 import (
 	"bytes"
-	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -21,8 +20,6 @@ import (
 	"github.com/openshift/assisted-service/internal/featuresupport"
 	"github.com/openshift/assisted-service/internal/network"
 	"github.com/openshift/assisted-service/models"
-	"github.com/openshift/assisted-service/pkg/auth"
-	"github.com/openshift/assisted-service/pkg/ocm"
 	"github.com/openshift/assisted-service/pkg/tang"
 	"github.com/openshift/assisted-service/pkg/validations"
 	"github.com/pkg/errors"
@@ -205,12 +202,14 @@ func ValidateClusterCreateIPAddresses(ipV6Supported bool, clusterId strfmt.UUID,
 	if params.VipDhcpAllocation != nil {
 		targetConfiguration.VipDhcpAllocation = params.VipDhcpAllocation
 	}
+	haMode, controlPlaneCount := common.GetDefaultHighAvailabilityAndMasterCountParams(params.HighAvailabilityMode, params.ControlPlaneCount)
 	targetConfiguration.ID = &clusterId
 	targetConfiguration.APIVips = params.APIVips
 	targetConfiguration.IngressVips = params.IngressVips
 	targetConfiguration.UserManagedNetworking = params.UserManagedNetworking
+	targetConfiguration.ControlPlaneCount = swag.Int64Value(controlPlaneCount)
 	targetConfiguration.VipDhcpAllocation = params.VipDhcpAllocation
-	targetConfiguration.HighAvailabilityMode = params.HighAvailabilityMode
+	targetConfiguration.HighAvailabilityMode = haMode
 	targetConfiguration.ClusterNetworks = params.ClusterNetworks
 	targetConfiguration.ServiceNetworks = params.ServiceNetworks
 	targetConfiguration.MachineNetworks = params.MachineNetworks
@@ -300,11 +299,14 @@ func ValidateClusterUpdateVIPAddresses(ipV6Supported bool, cluster *common.Clust
 	targetConfiguration.APIVips = apiVips
 	targetConfiguration.IngressVips = ingressVips
 	targetConfiguration.UserManagedNetworking = params.UserManagedNetworking
-	targetConfiguration.HighAvailabilityMode = cluster.HighAvailabilityMode
 	targetConfiguration.ClusterNetworks = params.ClusterNetworks
 	targetConfiguration.ServiceNetworks = params.ServiceNetworks
 	targetConfiguration.MachineNetworks = params.MachineNetworks
 	targetConfiguration.LoadBalancer = cluster.LoadBalancer
+
+	if params.ControlPlaneCount != nil {
+		targetConfiguration.ControlPlaneCount = *params.ControlPlaneCount
+	}
 
 	if params.LoadBalancer != nil {
 		targetConfiguration.LoadBalancer = params.LoadBalancer
@@ -702,8 +704,8 @@ func ValidateDiskEncryptionParams(diskEncryptionParams *models.DiskEncryption, D
 	return nil
 }
 
-func ValidateHighAvailabilityModeWithPlatform(highAvailabilityMode *string, platform *models.Platform) error {
-	if swag.StringValue(highAvailabilityMode) == models.ClusterHighAvailabilityModeNone {
+func ValidateControlPlaneCountWithPlatform(controlPlaneCount *int64, platform *models.Platform) error {
+	if swag.Int64Value(controlPlaneCount) == 1 {
 		if platform != nil && platform.Type != nil && *platform.Type != models.PlatformTypeNone && !common.IsPlatformExternal(platform) {
 			return errors.Errorf("Single node cluster is not supported alongside %s platform", *platform.Type)
 		}
@@ -727,36 +729,6 @@ func ValidateIgnitionImageSize(config string) error {
 	if ignitionImageSize > IgnitionImageSizePadding {
 		return errors.New(fmt.Sprintf("The ignition archive size (%d KiB) is over the maximum allowable size (%d KiB)",
 			ignitionImageSize/1024, IgnitionImageSizePadding/1024))
-	}
-
-	return nil
-}
-
-func ValidatePlatformCapability(platform *models.Platform, ctx context.Context, authzHandler auth.Authorizer) error {
-	if platform == nil || platform.Type == nil {
-		return nil
-	}
-
-	var checked bool
-
-	if common.IsOciExternalIntegrationEnabled(platform) {
-		available, err := authzHandler.HasOrgBasedCapability(ctx, ocm.PlatformOciCapabilityName)
-		if err == nil && available {
-			return nil
-		}
-		checked = true
-	}
-
-	if *platform.Type == models.PlatformTypeExternal {
-		available, err := authzHandler.HasOrgBasedCapability(ctx, ocm.PlatformExternalCapabilityName)
-		if err == nil && available {
-			return nil
-		}
-		checked = true
-	}
-
-	if checked {
-		return common.NewApiError(http.StatusBadRequest, errors.Errorf("Platform %s is not available", *platform.Type))
 	}
 
 	return nil

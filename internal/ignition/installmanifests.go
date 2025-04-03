@@ -68,8 +68,11 @@ Contents of the base64 encoded file are:
 set -eux
 unshare --mount
 mount -oremount,rw /sysroot
-ostree admin undeploy 1
+rpm-ostree cleanup --os=rhcos -r
+rpm-ostree cleanup --os=install -r
+systemctl stop rpm-ostreed
 rm -rf /sysroot/ostree/deploy/rhcos
+systemctl start rpm-ostreed
 */
 const cleanupDiscoveryStaterootIgnitionOverride = `{
   "ignition": {
@@ -83,7 +86,7 @@ const cleanupDiscoveryStaterootIgnitionOverride = `{
       "user": {
           "name": "root"
       },
-      "contents": { "source": "data:text/plain;charset=utf-8;base64,IyEvYmluL2Jhc2gKCnNldCAtZXV4CnVuc2hhcmUgLS1tb3VudAptb3VudCAtb3JlbW91bnQscncgL3N5c3Jvb3QKb3N0cmVlIGFkbWluIHVuZGVwbG95IDEKcm0gLXJmIC9zeXNyb290L29zdHJlZS9kZXBsb3kvcmhjb3MK" }
+      "contents": { "source": "data:text/plain;charset=utf-8;base64,IyEvYmluL2Jhc2gKCnNldCAtZXV4CnVuc2hhcmUgLS1tb3VudAptb3VudCAtb3JlbW91bnQscncgL3N5c3Jvb3QKcnBtLW9zdHJlZSBjbGVhbnVwIC0tb3M9cmhjb3MgLXIKcnBtLW9zdHJlZSBjbGVhbnVwIC0tb3M9aW5zdGFsbCAtcgpzeXN0ZW1jdGwgc3RvcCBycG0tb3N0cmVlZApybSAtcmYgL3N5c3Jvb3Qvb3N0cmVlL2RlcGxveS9yaGNvcwpzeXN0ZW1jdGwgc3RhcnQgcnBtLW9zdHJlZWQK" }
     }]
   },
   "systemd": {
@@ -317,7 +320,7 @@ func (g *installerGenerator) Generate(ctx context.Context, installConfig []byte)
 		return err
 	}
 
-	if swag.StringValue(g.cluster.HighAvailabilityMode) == models.ClusterHighAvailabilityModeNone {
+	if g.cluster.ControlPlaneCount == 1 {
 		err = g.bootstrapInPlaceIgnitionsCreate(ctx, installerPath, envVars)
 	} else {
 		err = g.runCreateCommand(ctx, installerPath, "ignition-configs", envVars)
@@ -775,7 +778,7 @@ func (g *installerGenerator) updateBootstrap(ctx context.Context, bootstrapPath 
 	}
 
 	config.Storage.Files = newFiles
-	if swag.StringValue(g.cluster.HighAvailabilityMode) != models.ClusterHighAvailabilityModeNone {
+	if g.cluster.ControlPlaneCount != 1 {
 		setFileInIgnition(config, "/opt/openshift/assisted-install-bootstrap", "data:,", false, 420, false)
 	}
 

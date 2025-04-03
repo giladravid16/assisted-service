@@ -125,6 +125,9 @@ type Config struct {
 
 	// InfraEnv ID for the ephemeral installer. Should not be set explicitly.Ephemeral (agent) installer sets this env var
 	InfraEnvID strfmt.UUID `envconfig:"INFRA_ENV_ID" default:""`
+
+	// Directory containing pre-generated TLS certs/keys for the ephemeral installer
+	ClusterTLSCertOverrideDir string `envconfig:"EPHEMERAL_INSTALLER_CLUSTER_TLS_CERTS_OVERRIDE_DIR" default:""`
 }
 
 const minimalOpenShiftVersionForSingleNode = "4.8.0-0.0"
@@ -335,12 +338,12 @@ func (b *bareMetalInventory) setDefaultRegisterClusterParams(ctx context.Context
 		params.NewClusterParams.SchedulableMasters = swag.Bool(false)
 	}
 
-	params.NewClusterParams.HighAvailabilityMode, params.NewClusterParams.ControlPlaneCount = getDefaultHighAvailabilityAndMasterCountParams(
+	params.NewClusterParams.HighAvailabilityMode, params.NewClusterParams.ControlPlaneCount = common.GetDefaultHighAvailabilityAndMasterCountParams(
 		params.NewClusterParams.HighAvailabilityMode, params.NewClusterParams.ControlPlaneCount,
 	)
 
 	log.Infof("Verifying cluster platform and user-managed-networking, got platform=%s and userManagedNetworking=%s", getPlatformType(params.NewClusterParams.Platform), common.BoolPtrForLog(params.NewClusterParams.UserManagedNetworking))
-	platform, userManagedNetworking, err := provider.GetActualCreateClusterPlatformParams(params.NewClusterParams.Platform, params.NewClusterParams.UserManagedNetworking, params.NewClusterParams.HighAvailabilityMode, params.NewClusterParams.CPUArchitecture)
+	platform, userManagedNetworking, err := provider.GetActualCreateClusterPlatformParams(params.NewClusterParams.Platform, params.NewClusterParams.UserManagedNetworking, params.NewClusterParams.ControlPlaneCount, params.NewClusterParams.CPUArchitecture)
 	if err != nil {
 		log.Error(err)
 		return params, err
@@ -348,7 +351,6 @@ func (b *bareMetalInventory) setDefaultRegisterClusterParams(ctx context.Context
 
 	params.NewClusterParams.Platform = platform
 	params.NewClusterParams.UserManagedNetworking = userManagedNetworking
-	log.Infof("Cluster high-availability-mode is set to %s, setting platform type to %s and user-managed-networking to %s", swag.StringValue(params.NewClusterParams.HighAvailabilityMode), getPlatformType(platform), common.BoolPtrForLog(userManagedNetworking))
 
 	if params.NewClusterParams.AdditionalNtpSource == nil {
 		params.NewClusterParams.AdditionalNtpSource = &b.Config.DefaultNTPSource
@@ -380,8 +382,7 @@ func getDefaultNetworkType(params installer.V2RegisterClusterParams) (*string, e
 		return nil, err
 	}
 
-	isSingleNodeCluster := swag.StringValue(params.NewClusterParams.HighAvailabilityMode) == models.ClusterCreateParamsHighAvailabilityModeNone
-
+	isSingleNodeCluster := swag.Int64Value(params.NewClusterParams.ControlPlaneCount) == 1
 	if isOpenShiftVersionRecentEnough || isSingleNodeCluster {
 		return swag.String(models.ClusterCreateParamsNetworkTypeOVNKubernetes), nil
 	} else {
@@ -402,7 +403,7 @@ func (b *bareMetalInventory) validateRegisterClusterInternalParams(params *insta
 		return common.NewApiError(http.StatusBadRequest, err)
 	}
 
-	if swag.StringValue(params.NewClusterParams.HighAvailabilityMode) == models.ClusterHighAvailabilityModeNone {
+	if swag.Int64Value(params.NewClusterParams.ControlPlaneCount) == 1 {
 		// verify minimal OCP version
 		err = verifyMinimalOpenShiftVersionForSingleNode(swag.StringValue(params.NewClusterParams.OpenshiftVersion))
 		if err != nil {
@@ -441,7 +442,7 @@ func (b *bareMetalInventory) validateRegisterClusterInternalParams(params *insta
 	}
 
 	if params.NewClusterParams.Platform != nil {
-		if err := validations.ValidateHighAvailabilityModeWithPlatform(params.NewClusterParams.HighAvailabilityMode, params.NewClusterParams.Platform); err != nil {
+		if err := validations.ValidateControlPlaneCountWithPlatform(params.NewClusterParams.ControlPlaneCount, params.NewClusterParams.Platform); err != nil {
 			return common.NewApiError(http.StatusBadRequest, err)
 		}
 	}
@@ -516,6 +517,23 @@ func MarshalNewClusterParamsNoPullSecret(params installer.V2RegisterClusterParam
 	return jsonNewClusterParams
 }
 
+func (b *bareMetalInventory) validateRegisterClusterInternalPreDefaultValuesSet(params installer.V2RegisterClusterParams, id strfmt.UUID, ctx context.Context) error {
+	params.NewClusterParams.HighAvailabilityMode, params.NewClusterParams.ControlPlaneCount = common.GetDefaultHighAvailabilityAndMasterCountParams(
+		params.NewClusterParams.HighAvailabilityMode, params.NewClusterParams.ControlPlaneCount,
+	)
+	if err := validateHighAvailabilityWithControlPlaneCount(*params.NewClusterParams.HighAvailabilityMode, *params.NewClusterParams.ControlPlaneCount, *params.NewClusterParams.OpenshiftVersion); err != nil {
+		return common.NewApiError(http.StatusBadRequest, err)
+	}
+	if err := validations.ValidateClusterCreateIPAddresses(b.IPv6Support, id, params.NewClusterParams); err != nil {
+		b.log.WithError(err).Error("Cannot register cluster. Failed VIP validations")
+		return common.NewApiError(http.StatusBadRequest, err)
+	}
+	if err := validations.ValidateDualStackNetworks(params.NewClusterParams, false, false); err != nil {
+		return common.NewApiError(http.StatusBadRequest, err)
+	}
+	return nil
+}
+
 func (b *bareMetalInventory) RegisterClusterInternal(ctx context.Context, kubeKey *types.NamespacedName, mirrorRegistryConfiguration *common.MirrorRegistryConfiguration, params installer.V2RegisterClusterParams) (*common.Cluster, error) {
 	id := strfmt.UUID(uuid.New().String())
 	url := installer.V2GetClusterURL{ClusterID: id}
@@ -550,15 +568,8 @@ func (b *bareMetalInventory) RegisterClusterInternal(ctx context.Context, kubeKe
 		}
 	}()
 
-	if err = validations.ValidateClusterCreateIPAddresses(b.IPv6Support, id, params.NewClusterParams); err != nil {
-		b.log.WithError(err).Error("Cannot register cluster. Failed VIP validations")
-		return nil, common.NewApiError(http.StatusBadRequest, err)
-	}
-	if err = validations.ValidateDualStackNetworks(params.NewClusterParams, false, false); err != nil {
-		return nil, common.NewApiError(http.StatusBadRequest, err)
-	}
-	if err = validations.ValidatePlatformCapability(params.NewClusterParams.Platform, ctx, b.authzHandler); err != nil {
-		return nil, common.NewApiError(http.StatusBadRequest, err)
+	if err = b.validateRegisterClusterInternalPreDefaultValuesSet(params, id, ctx); err != nil {
+		return nil, err
 	}
 
 	params, err = b.setDefaultRegisterClusterParams(ctx, params)
@@ -1417,7 +1428,6 @@ func (b *bareMetalInventory) InstallClusterInternal(ctx context.Context, params 
 		}()
 
 		if err = b.generateClusterInstallConfig(asyncCtx, *cluster, clusterInfraenvs); err != nil {
-			log.WithError(err).Errorf("failed to generate cluster install config for cluster %s", cluster.ID.String())
 			return
 		}
 		log.Infof("generated ignition for cluster %s", cluster.ID.String())
@@ -1438,6 +1448,36 @@ func (b *bareMetalInventory) InstallClusterInternal(ctx context.Context, params 
 
 	log.Infof("Successfully prepared cluster <%s> for installation", params.ClusterID.String())
 	return cluster, nil
+}
+
+func (b *bareMetalInventory) validateReleaseImageForDay2HostInstall(ctx context.Context, host *models.Host, cluster *common.Cluster) error {
+	inventory, err := common.UnmarshalInventory(host.Inventory)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal host inventory: %w", err)
+	}
+
+	// only validate if the host will require the release image to install coreos to the existing root filesystem
+	if inventory == nil || inventory.Boot == nil || inventory.Boot.DeviceType != models.BootDeviceTypePersistent {
+		return nil
+	}
+
+	cpuArch := cluster.CPUArchitecture
+	// cluster cpu arch is not set for imported clusters get the infraenv arch in this case
+	if cpuArch == "" {
+		var infraEnv *common.InfraEnv
+		infraEnv, err = common.GetInfraEnvFromDB(b.db, host.InfraEnvID)
+		if err != nil {
+			return fmt.Errorf("failed to get infraenv from database: %w", err)
+		}
+		cpuArch = infraEnv.CPUArchitecture
+	}
+
+	_, err = b.versionsHandler.GetReleaseImage(ctx, cluster.OpenshiftVersion, cpuArch, cluster.PullSecret)
+	if err != nil {
+		return fmt.Errorf("no release image found for host: %w", err)
+	}
+
+	return nil
 }
 
 func (b *bareMetalInventory) InstallSingleDay2HostInternal(ctx context.Context, clusterId strfmt.UUID, infraEnvId strfmt.UUID, hostId strfmt.UUID) error {
@@ -1471,6 +1511,11 @@ func (b *bareMetalInventory) InstallSingleDay2HostInternal(ctx context.Context, 
 		if cluster, err = common.GetClusterFromDBForUpdate(tx, clusterId, common.UseEagerLoading); err != nil {
 			return err
 		}
+
+		if err = b.validateReleaseImageForDay2HostInstall(ctx, &h.Host, cluster); err != nil {
+			return err
+		}
+
 		// move host to installing
 		err = b.createAndUploadDay2NodeIgnition(ctx, cluster, &h.Host, h.IgnitionEndpointToken, h.IgnitionEndpointHTTPHeaders)
 		if err != nil {
@@ -1544,6 +1589,11 @@ func (b *bareMetalInventory) V2InstallHost(ctx context.Context, params installer
 	if cluster, err = common.GetClusterFromDB(b.db, *h.ClusterID, common.SkipEagerLoading); err != nil {
 		return common.GenerateErrorResponder(err)
 	}
+
+	if err = b.validateReleaseImageForDay2HostInstall(ctx, h, cluster); err != nil {
+		return common.GenerateErrorResponder(err)
+	}
+
 	err = b.createAndUploadDay2NodeIgnition(ctx, cluster, h, host.IgnitionEndpointToken, host.IgnitionEndpointHTTPHeaders)
 	if err != nil {
 		log.Errorf("Failed to upload ignition for host %s", h.RequestedHostname)
@@ -1758,7 +1808,6 @@ func (b *bareMetalInventory) setInstallConfigOverridesUsage(featureUsages string
 
 func (b *bareMetalInventory) generateClusterInstallConfig(ctx context.Context, cluster common.Cluster, clusterInfraenvs []*common.InfraEnv) error {
 	log := logutil.FromContext(ctx, b.log)
-
 	rhRootCa := ignition.RedhatRootCA
 	if !b.Config.InstallRHCa {
 		rhRootCa = ""
@@ -1866,7 +1915,7 @@ func (b *bareMetalInventory) refreshInventory(ctx context.Context, cluster *comm
 }
 
 func (b *bareMetalInventory) v2NoneHaModeClusterUpdateValidations(cluster *common.Cluster, params installer.V2UpdateClusterParams) error {
-	if swag.StringValue(cluster.HighAvailabilityMode) != models.ClusterHighAvailabilityModeNone {
+	if cluster.ControlPlaneCount != 1 {
 		return nil
 	}
 
@@ -1883,6 +1932,17 @@ func (b *bareMetalInventory) v2NoneHaModeClusterUpdateValidations(cluster *commo
 
 func (b *bareMetalInventory) validateAndUpdateClusterParams(ctx context.Context, cluster *common.Cluster, params *installer.V2UpdateClusterParams) (installer.V2UpdateClusterParams, error) {
 	log := logutil.FromContext(ctx, b.log)
+
+	// We don't want to update ControlPlaneCount in day2 clusters as we don't know the previous hosts
+	if params.ClusterUpdateParams.ControlPlaneCount != nil && swag.StringValue(cluster.Kind) != models.ClusterKindAddHostsCluster {
+		if err := validateHighAvailabilityWithControlPlaneCount(
+			swag.StringValue(cluster.HighAvailabilityMode),
+			swag.Int64Value(params.ClusterUpdateParams.ControlPlaneCount),
+			cluster.OpenshiftVersion,
+		); err != nil {
+			return installer.V2UpdateClusterParams{}, err
+		}
+	}
 
 	if swag.StringValue(params.ClusterUpdateParams.PullSecret) != "" {
 		var mirroredRegistries []string
@@ -1930,21 +1990,6 @@ func (b *bareMetalInventory) validateAndUpdateClusterParams(ctx context.Context,
 
 	if err := b.validateIgnitionEndpoint(params.ClusterUpdateParams.IgnitionEndpoint, log); err != nil {
 		return installer.V2UpdateClusterParams{}, err
-	}
-
-	if err := validations.ValidatePlatformCapability(params.ClusterUpdateParams.Platform, ctx, b.authzHandler); err != nil {
-		return installer.V2UpdateClusterParams{}, err
-	}
-
-	// We don't want to update ControlPlaneCount in day2 clusters as we don't know the previous hosts
-	if params.ClusterUpdateParams.ControlPlaneCount != nil && swag.StringValue(cluster.Kind) != models.ClusterKindAddHostsCluster {
-		if err := validateHighAvailabilityWithControlPlaneCount(
-			swag.StringValue(cluster.HighAvailabilityMode),
-			swag.Int64Value(params.ClusterUpdateParams.ControlPlaneCount),
-			cluster.OpenshiftVersion,
-		); err != nil {
-			return installer.V2UpdateClusterParams{}, err
-		}
 	}
 
 	return *params, nil
@@ -2061,7 +2106,7 @@ func (b *bareMetalInventory) validateUpdateCluster(
 		return params, common.NewApiError(http.StatusBadRequest, err)
 	}
 
-	if err = validations.ValidateHighAvailabilityModeWithPlatform(cluster.HighAvailabilityMode, params.ClusterUpdateParams.Platform); err != nil {
+	if err = validations.ValidateControlPlaneCountWithPlatform(&cluster.ControlPlaneCount, params.ClusterUpdateParams.Platform); err != nil {
 		return params, common.NewApiError(http.StatusBadRequest, err)
 	}
 
@@ -2521,8 +2566,8 @@ func (b *bareMetalInventory) updateClusterData(_ context.Context, cluster *commo
 			&map[string]interface{}{"hyperthreading_enabled": *params.ClusterUpdateParams.Hyperthreading}, usages)
 	}
 
-	if params.ClusterUpdateParams.UserManagedNetworking != nil && cluster.HighAvailabilityMode != nil {
-		b.setUserManagedNetworkingAndMultiNodeUsage(swag.BoolValue(params.ClusterUpdateParams.UserManagedNetworking), *cluster.HighAvailabilityMode, usages)
+	if params.ClusterUpdateParams.UserManagedNetworking != nil {
+		b.setUserManagedNetworkingAndMultiNodeUsage(swag.BoolValue(params.ClusterUpdateParams.UserManagedNetworking), cluster.ControlPlaneCount, usages)
 	}
 
 	if params.ClusterUpdateParams.ControlPlaneCount != nil && *params.ClusterUpdateParams.ControlPlaneCount != cluster.ControlPlaneCount {
@@ -2920,8 +2965,8 @@ func (b *bareMetalInventory) setDefaultUsage(cluster *models.Cluster) error {
 	b.setUsage(swag.BoolValue(cluster.VipDhcpAllocation), usage.VipDhcpAllocationUsage, nil, usages)
 	b.setUsage(cluster.AdditionalNtpSource != "", usage.AdditionalNtpSourceUsage, &map[string]interface{}{
 		"source_count": len(strings.Split(cluster.AdditionalNtpSource, ","))}, usages)
-	b.setUsage(swag.StringValue(cluster.HighAvailabilityMode) == models.ClusterHighAvailabilityModeNone,
-		usage.HighAvailabilityModeUsage, nil, usages)
+	b.setUsage(cluster.ControlPlaneCount == 1,
+		usage.SingleNodeOpenShiftUsage, nil, usages)
 	b.setProxyUsage(&cluster.HTTPProxy, &cluster.HTTPProxy, &cluster.NoProxy, usages)
 	olmOperators := funk.Filter(cluster.MonitoredOperators, func(op *models.MonitoredOperator) bool {
 		return op != nil && op.OperatorType == models.OperatorTypeOlm
@@ -2934,7 +2979,7 @@ func (b *bareMetalInventory) setDefaultUsage(cluster *models.Cluster) error {
 	b.setUsage(cluster.Tags != "", usage.ClusterTags, nil, usages)
 	b.setUsage(cluster.Hyperthreading != models.ClusterHyperthreadingNone, usage.HyperthreadingUsage,
 		&map[string]interface{}{"hyperthreading_enabled": cluster.Hyperthreading}, usages)
-	b.setUserManagedNetworkingAndMultiNodeUsage(swag.BoolValue(cluster.UserManagedNetworking), swag.StringValue(cluster.HighAvailabilityMode), usages)
+	b.setUserManagedNetworkingAndMultiNodeUsage(swag.BoolValue(cluster.UserManagedNetworking), cluster.ControlPlaneCount, usages)
 	//write all the usages to the cluster object
 	err := b.providerRegistry.SetPlatformUsages(cluster.Platform, usages, b.usageApi)
 	if err != nil {
@@ -2978,8 +3023,8 @@ func (b *bareMetalInventory) setProxyUsage(httpProxy *string, httpsProxy *string
 	}
 }
 
-func (b *bareMetalInventory) setUserManagedNetworkingAndMultiNodeUsage(userManagedNetworking bool, highAvailabilityMode string, usages map[string]models.Usage) {
-	b.setUsage(userManagedNetworking && highAvailabilityMode == models.ClusterCreateParamsHighAvailabilityModeFull,
+func (b *bareMetalInventory) setUserManagedNetworkingAndMultiNodeUsage(userManagedNetworking bool, controlPlaneCount int64, usages map[string]models.Usage) {
+	b.setUsage(userManagedNetworking && controlPlaneCount >= common.MinMasterHostsNeededForInstallationInHaMode,
 		usage.UserManagedNetworkingWithMultiNode, nil, usages)
 }
 
@@ -4012,6 +4057,9 @@ func (b *bareMetalInventory) checkFileForDownload(ctx context.Context, clusterID
 	switch fileName {
 	case constants.Kubeconfig:
 		err = clusterPkg.CanDownloadKubeconfig(cluster)
+	case constants.KubeconfigNoIngress:
+		agentInstaller := b.Config.ClusterTLSCertOverrideDir != ""
+		err = clusterPkg.CanDownloadKubeconfigNoIngress(cluster, agentInstaller)
 	case constants.ManifestFolder:
 		// do nothing. manifests can be downloaded at any given cluster state
 	default:
@@ -4452,7 +4500,7 @@ func (b *bareMetalInventory) getCluster(ctx context.Context, clusterID string, f
 func (b *bareMetalInventory) customizeHost(cluster *models.Cluster, host *models.Host) {
 	var isSno = false
 	if cluster != nil {
-		isSno = swag.StringValue(cluster.HighAvailabilityMode) == models.ClusterHighAvailabilityModeNone
+		isSno = cluster.ControlPlaneCount == 1
 	}
 	host.ProgressStages = b.hostApi.GetStagesByRole(host, isSno)
 	host.RequestedHostname = hostutil.GetHostnameForMsg(host)
@@ -6168,9 +6216,18 @@ func (b *bareMetalInventory) V2DownloadClusterCredentials(ctx context.Context, p
 	// At the finalizing phase, we create the kubeconfig file and add the ingress CA.
 	// An ingress CA isn't required for normal login but for oauth login which isn't a common use case.
 	// Here we fallback to the kubeconfig-noingress for the kubeconfig filename.
-	if err != nil && params.FileName == constants.Kubeconfig {
+	if err != nil && fileName == constants.Kubeconfig {
 		fileName = constants.KubeconfigNoIngress
-		respBody, contentLength, err = b.v2DownloadClusterFilesInternal(ctx, constants.KubeconfigNoIngress, params.ClusterID.String())
+
+		if b.Config.ClusterTLSCertOverrideDir != "" {
+			// Since only ABI uses ClusterTLSCertOverrideDir, if it is set then
+			// kubeconfig must be generated here for retrieval prior to cluster installation.
+			if agentErr := b.generateAgentInstallerKubeconfig(ctx, params); agentErr != nil {
+				b.log.WithError(agentErr).Errorf("failed to generate agent installer kubeconfig")
+				return common.GenerateErrorResponder(agentErr)
+			}
+		}
+		respBody, contentLength, err = b.v2DownloadClusterFilesInternal(ctx, fileName, params.ClusterID.String())
 	}
 
 	if err != nil {
@@ -6753,33 +6810,25 @@ func (b *bareMetalInventory) HandleVerifyVipsResponse(ctx context.Context, host 
 	return b.clusterApi.HandleVerifyVipsResponse(ctx, *host.ClusterID, stepReply)
 }
 
-func getDefaultHighAvailabilityAndMasterCountParams(highAvailabilityMode *string, controlPlaneCount *int64) (*string, *int64) {
-	// Both not set, multi node by default
-	if highAvailabilityMode == nil && controlPlaneCount == nil {
-		return swag.String(models.ClusterCreateParamsHighAvailabilityModeFull),
-			swag.Int64(common.MinMasterHostsNeededForInstallationInHaMode)
+func (b *bareMetalInventory) generateAgentInstallerKubeconfig(ctx context.Context, params installer.V2DownloadClusterCredentialsParams) error {
+	cluster, err := common.GetClusterFromDB(b.db, params.ClusterID, common.UseEagerLoading)
+	if err != nil {
+		return err
 	}
 
-	// only highAvailabilityMode set
-	if controlPlaneCount == nil {
-		if *highAvailabilityMode == models.ClusterHighAvailabilityModeNone {
-			return highAvailabilityMode, swag.Int64(common.AllowedNumberOfMasterHostsInNoneHaMode)
-		}
-
-		return highAvailabilityMode, swag.Int64(common.MinMasterHostsNeededForInstallationInHaMode)
+	clusterInfraenvs, err := b.getClusterInfraenvs(cluster)
+	if err != nil {
+		b.log.WithError(err).Errorf("Failed to get infraenvs for cluster %s", cluster.ID.String())
+		return err
 	}
 
-	// only controlPlaneCount set
-	if highAvailabilityMode == nil {
-		if *controlPlaneCount == common.AllowedNumberOfMasterHostsInNoneHaMode {
-			return swag.String(models.ClusterHighAvailabilityModeNone), controlPlaneCount
-		}
-
-		return swag.String(models.ClusterHighAvailabilityModeFull), controlPlaneCount
+	if err = b.generateClusterInstallConfig(ctx, *cluster, clusterInfraenvs); err != nil {
+		b.log.WithError(err).Errorf("failed to generate cluster install config for cluster %s", cluster.ID.String())
+		return err
 	}
+	b.log.Infof("ignition generated for cluster for agent installer kubeconfig %s", cluster.ID.String())
 
-	// both are set
-	return highAvailabilityMode, controlPlaneCount
+	return nil
 }
 
 // extractMirroredRegistriesFromConfig takes a MirrorRegistryConfiguration and returns a list of source

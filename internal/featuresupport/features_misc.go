@@ -49,6 +49,11 @@ func (feature *SnoFeature) getIncompatibleFeatures(string) *[]models.FeatureSupp
 		models.FeatureSupportLevelIDVIPAUTOALLOC,
 		models.FeatureSupportLevelIDOPENSHIFTAI,
 		models.FeatureSupportLevelIDUSERMANAGEDLOADBALANCER,
+		models.FeatureSupportLevelIDNODEHEALTHCHECK,
+		models.FeatureSupportLevelIDSELFNODEREMEDIATION,
+		models.FeatureSupportLevelIDFENCEAGENTSREMEDIATION,
+		models.FeatureSupportLevelIDNODEMAINTENANCE,
+		models.FeatureSupportLevelIDKUBEDESCHEDULER,
 	}
 }
 
@@ -65,7 +70,7 @@ func (feature *SnoFeature) getIncompatibleArchitectures(openshiftVersion *string
 }
 
 func (feature *SnoFeature) getFeatureActiveLevel(cluster *common.Cluster, _ *models.InfraEnv, _ *models.V2ClusterUpdateParams, _ *models.InfraEnvUpdateParams) featureActiveLevel {
-	if cluster != nil && swag.StringValue(cluster.HighAvailabilityMode) == models.ClusterHighAvailabilityModeNone {
+	if cluster != nil && cluster.ControlPlaneCount == 1 {
 		return activeLevelActive
 	}
 	return activeLevelNotActive

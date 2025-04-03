@@ -117,21 +117,16 @@ func (i *installCmd) getFullInstallerCommand(ctx context.Context, cluster *commo
 		role = models.HostRoleBootstrap
 	}
 
-	haMode := models.ClusterHighAvailabilityModeFull
-	if cluster.HighAvailabilityMode != nil {
-		haMode = *cluster.HighAvailabilityMode
-	}
-
 	request := models.InstallCmdRequest{
-		Role:                 &role,
-		ClusterID:            host.ClusterID,
-		HostID:               host.ID,
-		InfraEnvID:           &host.InfraEnvID,
-		HighAvailabilityMode: &haMode,
-		ControllerImage:      swag.String(i.instructionConfig.ControllerImage),
-		CheckCvo:             swag.Bool(i.instructionConfig.CheckClusterVersion),
-		InstallerImage:       swag.String(i.instructionConfig.InstallerImage),
-		BootDevice:           swag.String(bootdevice),
+		Role:              &role,
+		ClusterID:         host.ClusterID,
+		HostID:            host.ID,
+		InfraEnvID:        &host.InfraEnvID,
+		ControlPlaneCount: cluster.ControlPlaneCount,
+		ControllerImage:   swag.String(i.instructionConfig.ControllerImage),
+		CheckCvo:          swag.Bool(i.instructionConfig.CheckClusterVersion),
+		InstallerImage:    swag.String(i.instructionConfig.InstallerImage),
+		BootDevice:        swag.String(bootdevice),
 	}
 	if i.enableSkipMcoReboot {
 		request.EnableSkipMcoReboot = featuresupport.IsFeatureAvailable(models.FeatureSupportLevelIDSKIPMCOREBOOT,
@@ -139,29 +134,43 @@ func (i *installCmd) getFullInstallerCommand(ctx context.Context, cluster *commo
 	}
 	request.NotifyNumReboots = i.notifyNumReboots
 
-	// those flags are not used on day2 installation
-	if swag.StringValue(cluster.Kind) != models.ClusterKindAddHostsCluster {
-		releaseImage, err := i.versionsHandler.GetReleaseImage(ctx, cluster.OpenshiftVersion, cluster.CPUArchitecture, cluster.PullSecret)
+	cpuArch := cluster.CPUArchitecture
+	// cluster cpu arch is not set for imported clusters so use infraenv for this case
+	if cpuArch == "" {
+		cpuArch = infraEnv.CPUArchitecture
+	}
+
+	installToDisk := inventory != nil && inventory.Boot != nil && inventory.Boot.DeviceType == models.BootDeviceTypePersistent
+
+	// Get release image for host only if it's either not a day-2 host or it's installing to disk
+	var releaseImage *models.ReleaseImage
+	var err error
+	if installToDisk || swag.StringValue(cluster.Kind) != models.ClusterKindAddHostsCluster {
+		releaseImage, err = i.versionsHandler.GetReleaseImage(ctx, cluster.OpenshiftVersion, cpuArch, cluster.PullSecret)
 		if err != nil {
 			return "", err
 		}
+	}
 
+	if installToDisk {
+		request.CoreosImage, err = i.ocRelease.GetCoreOSImage(i.log, *releaseImage.URL, i.instructionConfig.ReleaseImageMirror, cluster.PullSecret)
+		if err != nil {
+			return "", err
+		}
+		i.log.Infof("installing to disk with CoreOS image %s", request.CoreosImage)
+	}
+
+	// those flags are not used on day2 installation
+	if swag.StringValue(cluster.Kind) != models.ClusterKindAddHostsCluster {
 		request.McoImage, err = i.ocRelease.GetMCOImage(i.log, *releaseImage.URL, i.instructionConfig.ReleaseImageMirror, cluster.PullSecret)
 		if err != nil {
 			return "", err
 		}
 
-		if inventory != nil && inventory.Boot != nil && inventory.Boot.DeviceType == models.BootDeviceTypePersistent {
-			request.CoreosImage, err = i.ocRelease.GetCoreOSImage(i.log, *releaseImage.URL, i.instructionConfig.ReleaseImageMirror, cluster.PullSecret)
-			if err != nil {
-				return "", err
-			}
-			i.log.Infof("installing to disk with CoreOS image %s", request.CoreosImage)
-		}
-
 		i.log.Infof("Install command releaseImage: %s, mcoImage: %s", *releaseImage.URL, request.McoImage)
 
-		mustGatherMap, err := i.versionsHandler.GetMustGatherImages(cluster.OpenshiftVersion, cluster.CPUArchitecture, cluster.PullSecret)
+		var mustGatherMap versions.MustGatherVersion
+		mustGatherMap, err = i.versionsHandler.GetMustGatherImages(cluster.OpenshiftVersion, cluster.CPUArchitecture, cluster.PullSecret)
 		if err != nil {
 			return "", err
 		}

@@ -94,6 +94,7 @@ var _ = Describe("Bootstrap Ignition Update", func() {
 		manifestsAPI   *manifestsapi.MockManifestsAPI
 		eventsHandler  *eventsapi.MockHandler
 		installerCache *installercache.Installers
+		metricsAPI     *metrics.MockAPI
 	)
 
 	BeforeEach(func() {
@@ -105,12 +106,13 @@ var _ = Describe("Bootstrap Ignition Update", func() {
 		err1 = os.WriteFile(examplePath, []byte(bootstrap1), 0600)
 		Expect(err1).NotTo(HaveOccurred())
 		ctrl = gomock.NewController(GinkgoT())
+		metricsAPI = metrics.NewMockAPI(ctrl)
 		installerCacheConfig := installercache.Config{
 			CacheDir:       filepath.Join(workDir, "some-dir", "installercache"),
 			MaxCapacity:    installercache.Size(5),
 			MaxReleaseSize: installercache.Size(5),
 		}
-		installerCache, err = installercache.New(installerCacheConfig, eventsHandler, metrics.NewOSDiskStatsHelper(logrus.New()), logrus.New())
+		installerCache, err = installercache.New(installerCacheConfig, eventsHandler, metricsAPI, metrics.NewOSDiskStatsHelper(logrus.New()), logrus.New())
 		Expect(err).NotTo(HaveOccurred())
 		mockS3Client = s3wrapper.NewMockAPI(ctrl)
 		manifestsAPI = manifestsapi.NewMockManifestsAPI(ctrl)
@@ -262,6 +264,7 @@ SV4bRR9i0uf+xQ/oYRvugQ25Q7EahO5hJIWRf4aULbk36Zpw3++v2KFnF26zqwB6
 		ctrl           *gomock.Controller
 		manifestsAPI   *manifestsapi.MockManifestsAPI
 		eventsHandler  eventsapi.Handler
+		metricsAPI     *metrics.MockAPI
 		installerCache *installercache.Installers
 	)
 
@@ -286,12 +289,13 @@ SV4bRR9i0uf+xQ/oYRvugQ25Q7EahO5hJIWRf4aULbk36Zpw3++v2KFnF26zqwB6
 		ctrl = gomock.NewController(GinkgoT())
 		manifestsAPI = manifestsapi.NewMockManifestsAPI(ctrl)
 		eventsHandler = eventsapi.NewMockHandler(ctrl)
+		metricsAPI = metrics.NewMockAPI(ctrl)
 		installerCacheConfig := installercache.Config{
 			CacheDir:       filepath.Join(workDir, "some-dir", "installercache"),
 			MaxCapacity:    installercache.Size(5),
 			MaxReleaseSize: installercache.Size(5),
 		}
-		installerCache, err = installercache.New(installerCacheConfig, eventsHandler, metrics.NewOSDiskStatsHelper(logrus.New()), logrus.New())
+		installerCache, err = installercache.New(installerCacheConfig, eventsHandler, metricsAPI, metrics.NewOSDiskStatsHelper(logrus.New()), logrus.New())
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -456,6 +460,7 @@ var _ = Describe("createHostIgnitions", func() {
 		workDir        string
 		manifestsAPI   *manifestsapi.MockManifestsAPI
 		eventsHandler  eventsapi.Handler
+		metricsAPI     *metrics.MockAPI
 		installerCache *installercache.Installers
 	)
 
@@ -476,13 +481,14 @@ var _ = Describe("createHostIgnitions", func() {
 		mockS3Client = s3wrapper.NewMockAPI(ctrl)
 		manifestsAPI = manifestsapi.NewMockManifestsAPI(ctrl)
 		eventsHandler = eventsapi.NewMockHandler(ctrl)
+		metricsAPI = metrics.NewMockAPI(ctrl)
 		cluster = testCluster()
 		installerCacheConfig := installercache.Config{
 			CacheDir:       filepath.Join(workDir, "some-dir", "installercache"),
 			MaxCapacity:    installercache.Size(5),
 			MaxReleaseSize: installercache.Size(5),
 		}
-		installerCache, err = installercache.New(installerCacheConfig, eventsHandler, metrics.NewOSDiskStatsHelper(logrus.New()), logrus.New())
+		installerCache, err = installercache.New(installerCacheConfig, eventsHandler, metricsAPI, metrics.NewOSDiskStatsHelper(logrus.New()), logrus.New())
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -564,7 +570,7 @@ var _ = Describe("createHostIgnitions", func() {
 					Role:              models.HostRoleMaster,
 				},
 			}
-			cluster.HighAvailabilityMode = swag.String(models.ClusterHighAvailabilityModeNone)
+			cluster.ControlPlaneCount = 1
 			cluster.MachineNetworks = network.CreateMachineNetworksArray("3.3.3.0/24")
 
 			// create an ID for each host
@@ -608,7 +614,7 @@ var _ = Describe("createHostIgnitions", func() {
 					Role:              models.HostRoleMaster,
 				},
 			}
-			cluster.HighAvailabilityMode = swag.String(models.ClusterHighAvailabilityModeFull)
+			cluster.ControlPlaneCount = common.MinMasterHostsNeededForInstallationInHaMode
 			cluster.MachineNetworks = network.CreateMachineNetworksArray("3.3.3.0/24")
 
 			// create an ID for each host
@@ -656,7 +662,7 @@ var _ = Describe("createHostIgnitions", func() {
 				Role:              models.HostRoleMaster,
 			},
 		}
-		cluster.HighAvailabilityMode = swag.String(models.ClusterHighAvailabilityModeFull)
+		cluster.ControlPlaneCount = common.MinMasterHostsNeededForInstallationInHaMode
 		cluster.UserManagedNetworking = swag.Bool(true)
 
 		// create an ID for each host
@@ -712,7 +718,7 @@ var _ = Describe("createHostIgnitions", func() {
 				Role:              models.HostRoleMaster,
 			},
 		}
-		cluster.HighAvailabilityMode = swag.String(models.ClusterHighAvailabilityModeFull)
+		cluster.ControlPlaneCount = common.MinMasterHostsNeededForInstallationInHaMode
 		cluster.LoadBalancer = &models.LoadBalancer{Type: models.LoadBalancerTypeUserManaged}
 
 		// create an ID for each host
@@ -769,7 +775,7 @@ var _ = Describe("createHostIgnitions", func() {
 				Role:              models.HostRoleMaster,
 			},
 		}
-		cluster.HighAvailabilityMode = swag.String(models.ClusterHighAvailabilityModeFull)
+		cluster.ControlPlaneCount = common.MinMasterHostsNeededForInstallationInHaMode
 		cluster.LoadBalancer = &models.LoadBalancer{Type: models.LoadBalancerTypeClusterManaged}
 		cluster.MachineNetworks = []*models.MachineNetwork{
 			{Cidr: "192.168.127.0/24"},
@@ -866,7 +872,7 @@ var _ = Describe("createHostIgnitions", func() {
 			}
 		}
 		Expect(scriptFile).NotTo(BeNil())
-		Expect(*scriptFile.FileEmbedded1.Contents.Source).To(Equal("data:text/plain;charset=utf-8;base64,IyEvYmluL2Jhc2gKCnNldCAtZXV4CnVuc2hhcmUgLS1tb3VudAptb3VudCAtb3JlbW91bnQscncgL3N5c3Jvb3QKb3N0cmVlIGFkbWluIHVuZGVwbG95IDEKcm0gLXJmIC9zeXNyb290L29zdHJlZS9kZXBsb3kvcmhjb3MK"))
+		Expect(*scriptFile.FileEmbedded1.Contents.Source).To(Equal("data:text/plain;charset=utf-8;base64,IyEvYmluL2Jhc2gKCnNldCAtZXV4CnVuc2hhcmUgLS1tb3VudAptb3VudCAtb3JlbW91bnQscncgL3N5c3Jvb3QKcnBtLW9zdHJlZSBjbGVhbnVwIC0tb3M9cmhjb3MgLXIKcnBtLW9zdHJlZSBjbGVhbnVwIC0tb3M9aW5zdGFsbCAtcgpzeXN0ZW1jdGwgc3RvcCBycG0tb3N0cmVlZApybSAtcmYgL3N5c3Jvb3Qvb3N0cmVlL2RlcGxveS9yaGNvcwpzeXN0ZW1jdGwgc3RhcnQgcnBtLW9zdHJlZWQK"))
 
 		var unit *config_32_types.Unit
 		for idx, u := range config.Systemd.Units {
@@ -1720,14 +1726,14 @@ var _ = Describe("Set kubelet node ip", func() {
 	})
 	It("sno bootstrap kubelet ip", func() {
 		cluster.UserManagedNetworking = swag.Bool(true)
-		cluster.HighAvailabilityMode = swag.String(models.ClusterHighAvailabilityModeNone)
+		cluster.ControlPlaneCount = 1
 		basicEnvVars, err = generator.addBootstrapKubeletIpIfRequired(generator.log, basicEnvVars)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(basicEnvVars).Should(ContainElement("OPENSHIFT_INSTALL_BOOTSTRAP_NODE_IP=192.168.126.10"))
 	})
 	It("UMN platform bootstrap kubelet ip should not be set", func() {
 		cluster.UserManagedNetworking = swag.Bool(true)
-		cluster.HighAvailabilityMode = swag.String(models.ClusterHighAvailabilityModeFull)
+		cluster.ControlPlaneCount = common.MinMasterHostsNeededForInstallationInHaMode
 		basicEnvVars, err = generator.addBootstrapKubeletIpIfRequired(generator.log, basicEnvVars)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(basicEnvVars).ShouldNot(ContainElement("OPENSHIFT_INSTALL_BOOTSTRAP_NODE_IP=192.168.126.10"))
@@ -1735,7 +1741,7 @@ var _ = Describe("Set kubelet node ip", func() {
 	})
 	It("UMN platform bootstrap kubelet ip should be set when node-ip-allocations exist", func() {
 		cluster.UserManagedNetworking = swag.Bool(true)
-		cluster.HighAvailabilityMode = swag.String(models.ClusterHighAvailabilityModeFull)
+		cluster.ControlPlaneCount = common.MinMasterHostsNeededForInstallationInHaMode
 		generator.nodeIpAllocations = map[strfmt.UUID]*network.NodeIpAllocation{
 			*cluster.Hosts[0].ID: {
 				NodeIp: "192.168.126.11",
@@ -1779,6 +1785,7 @@ var _ = Describe("Bare metal host generation", func() {
 		ctrl           *gomock.Controller
 		manifestsAPI   *manifestsapi.MockManifestsAPI
 		eventsHandler  eventsapi.Handler
+		metricsAPI     *metrics.MockAPI
 		installerCache *installercache.Installers
 	)
 
@@ -1789,13 +1796,14 @@ var _ = Describe("Bare metal host generation", func() {
 		ctrl = gomock.NewController(GinkgoT())
 		manifestsAPI = manifestsapi.NewMockManifestsAPI(ctrl)
 		eventsHandler = eventsapi.NewMockHandler(ctrl)
+		metricsAPI = metrics.NewMockAPI(ctrl)
 		installerCacheConfig := installercache.Config{
 			CacheDir:                  filepath.Join(workDir, "some-dir", "installercache"),
 			MaxCapacity:               installercache.Size(5),
 			MaxReleaseSize:            installercache.Size(5),
 			ReleaseFetchRetryInterval: 1 * time.Microsecond,
 		}
-		installerCache, err = installercache.New(installerCacheConfig, eventsHandler, metrics.NewOSDiskStatsHelper(logrus.New()), logrus.New())
+		installerCache, err = installercache.New(installerCacheConfig, eventsHandler, metricsAPI, metrics.NewOSDiskStatsHelper(logrus.New()), logrus.New())
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -1889,6 +1897,7 @@ var _ = Describe("Import Cluster TLS Certs for ephemeral installer", func() {
 		ctrl           *gomock.Controller
 		manifestsAPI   *manifestsapi.MockManifestsAPI
 		eventsHandler  eventsapi.Handler
+		metricsAPI     *metrics.MockAPI
 		installerCache *installercache.Installers
 	)
 
@@ -1920,13 +1929,14 @@ var _ = Describe("Import Cluster TLS Certs for ephemeral installer", func() {
 		ctrl = gomock.NewController(GinkgoT())
 		manifestsAPI = manifestsapi.NewMockManifestsAPI(ctrl)
 		eventsHandler = eventsapi.NewMockHandler(ctrl)
+		metricsAPI = metrics.NewMockAPI(ctrl)
 		installerCacheConfig := installercache.Config{
 			CacheDir:                  filepath.Join(workDir, "some-dir", "installercache"),
 			MaxCapacity:               installercache.Size(5),
 			MaxReleaseSize:            installercache.Size(5),
 			ReleaseFetchRetryInterval: 1 * time.Microsecond,
 		}
-		installerCache, err = installercache.New(installerCacheConfig, eventsHandler, metrics.NewOSDiskStatsHelper(logrus.New()), logrus.New())
+		installerCache, err = installercache.New(installerCacheConfig, eventsHandler, metricsAPI, metrics.NewOSDiskStatsHelper(logrus.New()), logrus.New())
 		Expect(err).NotTo(HaveOccurred())
 	})
 

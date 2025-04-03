@@ -63,6 +63,13 @@ const (
 	AreAuthorinoRequirementsSatisfied              = validationID(models.HostValidationIDAuthorinoRequirementsSatisfied)
 	IsMtuValid                                     = validationID(models.HostValidationIDMtuValid)
 	AreNmstateRequirementsSatisfied                = validationID(models.HostValidationIDNmstateRequirementsSatisfied)
+	AreAMDGPURequirementsSatisfied                 = validationID(models.HostValidationIDAmdGpuRequirementsSatisfied)
+	AreKMMRequirementsSatisfied                    = validationID(models.HostValidationIDKmmRequirementsSatisfied)
+	AreNodeHealthcheckRequirementsSatisfied        = validationID(models.HostValidationIDNodeHealthcheckRequirementsSatisfied)
+	AreSelfNodeRemediationRequirementsSatisfied    = validationID(models.HostValidationIDSelfNodeRemediationRequirementsSatisfied)
+	AreFenceAgentsRemediationRequirementsSatisfied = validationID(models.HostValidationIDFenceAgentsRemediationRequirementsSatisfied)
+	AreNodeMaintenanceRequirementsSatisfied        = validationID(models.HostValidationIDNodeMaintenanceRequirementsSatisfied)
+	AreKubeDeschedulerRequirementsSatisfied        = validationID(models.HostValidationIDKubeDeschedulerRequirementsSatisfied)
 )
 
 func (v validationID) category() (string, error) {
@@ -120,7 +127,14 @@ func (v validationID) category() (string, error) {
 		AreOpenShiftAIRequirementsSatisfied,
 		AreAuthorinoRequirementsSatisfied,
 		AreOscRequirementsSatisfied,
-		AreNmstateRequirementsSatisfied:
+		AreNmstateRequirementsSatisfied,
+		AreAMDGPURequirementsSatisfied,
+		AreKMMRequirementsSatisfied,
+		AreNodeHealthcheckRequirementsSatisfied,
+		AreSelfNodeRemediationRequirementsSatisfied,
+		AreFenceAgentsRemediationRequirementsSatisfied,
+		AreNodeMaintenanceRequirementsSatisfied,
+		AreKubeDeschedulerRequirementsSatisfied:
 		return "operators", nil
 	}
 	return "", common.NewApiError(http.StatusInternalServerError, errors.Errorf("Unexpected validation id %s", string(v)))

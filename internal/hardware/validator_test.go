@@ -192,6 +192,12 @@ var _ = Describe("Disk eligibility", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(notEligibleReasons).To(ContainElement("Host IP address is not available"))
 
+		By("Check iSCSI is not eligible when host IPv4 address is an empty string")
+		testDisk.Iscsi = &models.Iscsi{HostIPAddress: ""}
+		notEligibleReasons, err = hwvalidator.DiskIsEligible(ctx, &testDisk, infraEnv, &cluster, &host, inventory)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(notEligibleReasons).To(ContainElement("Host IP address is not available"))
+
 		By("Check iSCSI is eligible when host IPv4 address is not part of default network interface")
 		testDisk.Iscsi = &models.Iscsi{HostIPAddress: "4.5.6.7"}
 		notEligibleReasons, err = hwvalidator.DiskIsEligible(ctx, &testDisk, infraEnv, &cluster, &host, inventory)
@@ -924,7 +930,7 @@ var _ = Describe("Cluster host requirements", func() {
 		role := models.HostRoleMaster
 		id1 := strfmt.UUID(uuid.New().String())
 		host = &models.Host{ID: &id1, ClusterID: cluster.ID, Role: role}
-		cluster.HighAvailabilityMode = swag.String(models.ClusterHighAvailabilityModeNone)
+		cluster.ControlPlaneCount = 1
 
 		operatorsMock.EXPECT().GetRequirementsBreakdownForHostInCluster(gomock.Any(), gomock.Eq(cluster), gomock.Eq(host)).Return(operatorRequirements, nil)
 
@@ -1346,7 +1352,7 @@ var _ = Describe("Preflight host requirements", func() {
 	})
 
 	It("should contain correct preflight  host requirements - single node", func() {
-		cluster.HighAvailabilityMode = swag.String(models.ClusterHighAvailabilityModeNone)
+		cluster.ControlPlaneCount = 1
 		operatorsMock.EXPECT().GetPreflightRequirementsBreakdownForCluster(gomock.Any(), gomock.Eq(cluster)).Return(operatorRequirements, nil)
 
 		result, err := hwvalidator.GetPreflightHardwareRequirements(context.TODO(), cluster)

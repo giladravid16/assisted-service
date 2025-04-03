@@ -369,19 +369,19 @@ var _ = Describe("V2ListFeatureSupportLevels API", func() {
 			When("GetFeatureSupportList 4.12 with Platform", func() {
 				It(string(*filters.PlatformType)+" "+swag.StringValue(filters.ExternalPlatformName), func() {
 					list := GetFeatureSupportList("dummy", nil, filters.PlatformType, filters.ExternalPlatformName)
-					Expect(len(list)).To(Equal(31))
+					Expect(len(list)).To(Equal(38))
 				})
 			})
 		}
 
 		It("GetFeatureSupportList 4.12", func() {
 			list := GetFeatureSupportList("4.12", nil, nil, nil)
-			Expect(len(list)).To(Equal(36))
+			Expect(len(list)).To(Equal(43))
 		})
 
 		It("GetFeatureSupportList 4.13", func() {
 			list := GetFeatureSupportList("4.13", nil, nil, nil)
-			Expect(len(list)).To(Equal(36))
+			Expect(len(list)).To(Equal(43))
 		})
 
 		It("GetCpuArchitectureSupportList 4.12", func() {
@@ -430,7 +430,7 @@ var _ = Describe("V2ListFeatureSupportLevels API", func() {
 		It("No OCP version with CPU architecture that depends on OCP version", func() {
 			cluster := common.Cluster{Cluster: models.Cluster{
 				CPUArchitecture:       models.ClusterCPUArchitectureArm64,
-				HighAvailabilityMode:  swag.String(models.ClusterHighAvailabilityModeNone),
+				ControlPlaneCount:     1,
 				UserManagedNetworking: swag.Bool(true),
 				Platform:              &models.Platform{Type: common.PlatformTypePtr(models.PlatformTypeNone)},
 			}}
@@ -440,7 +440,7 @@ var _ = Describe("V2ListFeatureSupportLevels API", func() {
 			cluster := common.Cluster{Cluster: models.Cluster{
 				OpenshiftVersion:      "4.8",
 				CPUArchitecture:       models.ClusterCPUArchitectureX8664,
-				HighAvailabilityMode:  swag.String(models.ClusterHighAvailabilityModeNone),
+				ControlPlaneCount:     1,
 				UserManagedNetworking: swag.Bool(true),
 				Platform:              &models.Platform{Type: common.PlatformTypePtr(models.PlatformTypeNone)},
 			}}
@@ -450,7 +450,7 @@ var _ = Describe("V2ListFeatureSupportLevels API", func() {
 			cluster := common.Cluster{Cluster: models.Cluster{
 				OpenshiftVersion:      "4.8",
 				CPUArchitecture:       models.ClusterCPUArchitectureS390x,
-				HighAvailabilityMode:  swag.String(models.ClusterHighAvailabilityModeFull),
+				ControlPlaneCount:     common.MinMasterHostsNeededForInstallationInHaMode,
 				UserManagedNetworking: swag.Bool(true),
 				Platform:              &models.Platform{Type: common.PlatformTypePtr(models.PlatformTypeNone)},
 			}}
@@ -461,7 +461,7 @@ var _ = Describe("V2ListFeatureSupportLevels API", func() {
 			cluster := common.Cluster{Cluster: models.Cluster{
 				OpenshiftVersion:      "4.13",
 				CPUArchitecture:       models.ClusterCPUArchitectureS390x,
-				HighAvailabilityMode:  swag.String(models.ClusterHighAvailabilityModeFull),
+				ControlPlaneCount:     common.MinMasterHostsNeededForInstallationInHaMode,
 				UserManagedNetworking: swag.Bool(true),
 				Platform:              &models.Platform{Type: common.PlatformTypePtr(models.PlatformTypeNone)},
 			}}
@@ -478,7 +478,7 @@ var _ = Describe("V2ListFeatureSupportLevels API", func() {
 			cluster := common.Cluster{Cluster: models.Cluster{
 				OpenshiftVersion:      "4.12",
 				CPUArchitecture:       models.ClusterCPUArchitecturePpc64le,
-				HighAvailabilityMode:  swag.String(models.ClusterHighAvailabilityModeNone),
+				ControlPlaneCount:     1,
 				UserManagedNetworking: swag.Bool(true),
 				Platform:              &models.Platform{Type: common.PlatformTypePtr(models.PlatformTypeNone)},
 			}}
@@ -488,7 +488,7 @@ var _ = Describe("V2ListFeatureSupportLevels API", func() {
 			cluster := common.Cluster{Cluster: models.Cluster{
 				OpenshiftVersion:      "4.13",
 				CPUArchitecture:       models.ClusterCPUArchitecturePpc64le,
-				HighAvailabilityMode:  swag.String(models.ClusterHighAvailabilityModeNone),
+				ControlPlaneCount:     1,
 				UserManagedNetworking: swag.Bool(true),
 				Platform:              &models.Platform{Type: common.PlatformTypePtr(models.PlatformTypeNone)},
 			}}
@@ -499,7 +499,7 @@ var _ = Describe("V2ListFeatureSupportLevels API", func() {
 			cluster := common.Cluster{Cluster: models.Cluster{
 				OpenshiftVersion:      "4.12",
 				CPUArchitecture:       models.ClusterCPUArchitectureS390x,
-				HighAvailabilityMode:  swag.String(models.ClusterHighAvailabilityModeNone),
+				ControlPlaneCount:     1,
 				UserManagedNetworking: swag.Bool(true),
 				Platform:              &models.Platform{Type: common.PlatformTypePtr(models.PlatformTypeNone)},
 			}}
@@ -509,7 +509,7 @@ var _ = Describe("V2ListFeatureSupportLevels API", func() {
 			cluster := common.Cluster{Cluster: models.Cluster{
 				OpenshiftVersion:      "4.13",
 				CPUArchitecture:       models.ClusterCPUArchitectureS390x,
-				HighAvailabilityMode:  swag.String(models.ClusterHighAvailabilityModeNone),
+				ControlPlaneCount:     1,
 				UserManagedNetworking: swag.Bool(true),
 				Platform:              &models.Platform{Type: common.PlatformTypePtr(models.PlatformTypeNone)},
 			}}
@@ -520,7 +520,7 @@ var _ = Describe("V2ListFeatureSupportLevels API", func() {
 			cluster := common.Cluster{Cluster: models.Cluster{
 				OpenshiftVersion:      "4.8",
 				CPUArchitecture:       models.ClusterCPUArchitectureArm64,
-				HighAvailabilityMode:  swag.String(models.ClusterHighAvailabilityModeNone),
+				ControlPlaneCount:     1,
 				UserManagedNetworking: swag.Bool(true),
 				Platform:              &models.Platform{Type: common.PlatformTypePtr(models.PlatformTypeNutanix)},
 			}}
@@ -530,7 +530,7 @@ var _ = Describe("V2ListFeatureSupportLevels API", func() {
 			cluster := common.Cluster{Cluster: models.Cluster{
 				OpenshiftVersion:      "4.11",
 				CPUArchitecture:       models.ClusterCPUArchitectureArm64,
-				HighAvailabilityMode:  swag.String(models.ClusterHighAvailabilityModeFull),
+				ControlPlaneCount:     common.MinMasterHostsNeededForInstallationInHaMode,
 				Platform:              &models.Platform{Type: common.PlatformTypePtr(models.PlatformTypeBaremetal)},
 				UserManagedNetworking: swag.Bool(false),
 			}}
@@ -654,7 +654,7 @@ var _ = Describe("V2ListFeatureSupportLevels API", func() {
 				cluster := common.Cluster{Cluster: models.Cluster{
 					OpenshiftVersion:      "4.8",
 					CPUArchitecture:       models.ClusterCPUArchitecturePpc64le,
-					HighAvailabilityMode:  swag.String(models.ClusterHighAvailabilityModeNone),
+					ControlPlaneCount:     1,
 					UserManagedNetworking: swag.Bool(true),
 					Platform:              &models.Platform{Type: common.PlatformTypePtr(models.PlatformTypeNutanix)},
 					VipDhcpAllocation:     swag.Bool(true),
@@ -685,7 +685,7 @@ var _ = Describe("V2ListFeatureSupportLevels API", func() {
 				cluster := common.Cluster{Cluster: models.Cluster{
 					OpenshiftVersion:      "4.8",
 					CPUArchitecture:       models.ClusterCPUArchitecturePpc64le,
-					HighAvailabilityMode:  swag.String(models.ClusterHighAvailabilityModeNone),
+					ControlPlaneCount:     1,
 					UserManagedNetworking: swag.Bool(true),
 					Platform:              &models.Platform{Type: common.PlatformTypePtr(models.PlatformTypeNutanix)},
 					VipDhcpAllocation:     swag.Bool(true),
@@ -994,7 +994,7 @@ var _ = Describe("V2ListFeatureSupportLevels API", func() {
 		Entry(
 			"vsphere platform",
 			[]SupportLevelFeature{&VsphereIntegrationFeature{}},
-			false,
+			true,
 		),
 
 		Entry(
@@ -1006,6 +1006,24 @@ var _ = Describe("V2ListFeatureSupportLevels API", func() {
 		Entry(
 			"user managed networking",
 			[]SupportLevelFeature{&UserManagedNetworkingFeature{}},
+			false,
+		),
+
+		Entry(
+			"SNO",
+			[]SupportLevelFeature{&UserManagedNetworkingFeature{}},
+			false,
+		),
+
+		Entry(
+			"dual stack",
+			[]SupportLevelFeature{&DualStackFeature{}},
+			false,
+		),
+
+		Entry(
+			"dual stack vips",
+			[]SupportLevelFeature{&DualStackVipsFeature{}},
 			false,
 		),
 

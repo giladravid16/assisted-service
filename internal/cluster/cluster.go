@@ -527,7 +527,7 @@ func (m *Manager) autoAssignMachineNetworkCidr(c *common.Cluster) error {
 	var err error
 	if swag.BoolValue(c.VipDhcpAllocation) {
 		err = m.tryAssignMachineCidrDHCPMode(c)
-	} else if swag.StringValue(c.HighAvailabilityMode) == models.ClusterHighAvailabilityModeNone {
+	} else if c.ControlPlaneCount == 1 {
 		err = m.tryAssignMachineCidrSNO(c)
 	} else if !swag.BoolValue(c.UserManagedNetworking) {
 		err = m.tryAssignMachineCidrNonDHCPMode(c)
@@ -665,9 +665,9 @@ func (m *Manager) ClusterMonitoring() {
 	}
 }
 
-func CanDownloadFiles(c *common.Cluster) (err error) {
-	clusterStatus := swag.StringValue(c.Status)
-	allowedStatuses := []string{
+func getDownloadFilesAllowedStatuses() []string {
+
+	return []string{
 		models.ClusterStatusInstalling,
 		models.ClusterStatusFinalizing,
 		models.ClusterStatusInstalled,
@@ -676,7 +676,13 @@ func CanDownloadFiles(c *common.Cluster) (err error) {
 		models.ClusterStatusCancelled,
 		models.ClusterStatusInstallingPendingUserAction,
 	}
-	if !funk.Contains(allowedStatuses, clusterStatus) {
+}
+
+func CanDownloadFiles(c *common.Cluster) (err error) {
+	clusterStatus := swag.StringValue(c.Status)
+
+	allowedStatuses := getDownloadFilesAllowedStatuses()
+	if !funk.Contains(getDownloadFilesAllowedStatuses(), clusterStatus) {
 		err = errors.Errorf("cluster %s is in %s state, files can be downloaded only when status is one of: %s",
 			c.ID, clusterStatus, allowedStatuses)
 	}
@@ -693,6 +699,23 @@ func CanDownloadKubeconfig(c *common.Cluster) (err error) {
 		models.ClusterStatusCancelled,
 		models.ClusterStatusInstallingPendingUserAction,
 	}
+	if !funk.Contains(allowedStatuses, clusterStatus) {
+		err = errors.Errorf("cluster %s is in %s state, %s can be downloaded only when status is one of: %s",
+			c.ID, clusterStatus, constants.Kubeconfig, allowedStatuses)
+	}
+
+	return err
+}
+
+func CanDownloadKubeconfigNoIngress(c *common.Cluster, agentInstaller bool) (err error) {
+	clusterStatus := swag.StringValue(c.Status)
+	if !agentInstaller {
+		return CanDownloadFiles(c)
+	}
+
+	// For agent installer, kubeconfig can be generated, and retrieved, prior to cluster installation.
+	allowedStatuses := getDownloadFilesAllowedStatuses()
+	allowedStatuses = append(allowedStatuses, models.ClusterStatusReady, models.ClusterStatusPreparingForInstallation)
 	if !funk.Contains(allowedStatuses, clusterStatus) {
 		err = errors.Errorf("cluster %s is in %s state, %s can be downloaded only when status is one of: %s",
 			c.ID, clusterStatus, constants.Kubeconfig, allowedStatuses)
@@ -817,7 +840,7 @@ func (m *Manager) UpdateInstallProgress(ctx context.Context, clusterID strfmt.UU
 		log.WithError(err).Error("Failed to host count from DB")
 		return err
 	}
-	isSno := swag.StringValue(cluster.HighAvailabilityMode) == models.ClusterHighAvailabilityModeNone
+	isSno := cluster.ControlPlaneCount == 1
 	var totalHostsDoneStages, totalHostsStages float64
 	for _, h := range hostsCount {
 		stages := host.FindMatchingStages(h.Role, h.Bootstrap, isSno)
