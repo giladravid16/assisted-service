@@ -1002,11 +1002,6 @@ func (g *installerGenerator) updateIgnitions() error {
 				return errors.Wrapf(err, "error adding CA cert to ignition %s", arbiterPath)
 			}
 		}
-		if g.encodedDhcpFileContents != "" {
-			if err := g.updateDhcpFiles(arbiterPath); err != nil {
-				return errors.Wrapf(err, "error adding DHCP file to ignition %s", arbiterPath)
-			}
-		}
 	}
 
 	_, ipv6, err := network.GetClusterAddressStack(g.cluster.Hosts)

@@ -1,147 +1,133 @@
 ---
-title: neat-enhancement-idea
+title: arbiter-clusters
 authors:
-  - "@janedoe"
-creation-date: yyyy-mm-dd
-last-updated: yyyy-mm-dd
+  - "@giladravid16"
+creation-date: 2025-03-13
+last-updated: 2025-03-13
 ---
 
-# Neat Enhancement Idea
-
-This is the title of the enhancement. Keep it simple and descriptive. A good
-title can help communicate what the enhancement is and should be considered as
-part of any review.
-
-The YAML `title` should be lowercased and spaces/punctuation should be
-replaced with `-`.
-
-To get started with this template:
-1. **Make a copy of this template.** Copy this template.
-1. **Fill out the "overview" sections.** This includes the Summary and
-   Motivation sections. These should be easy and explain why the community
-   should desire this enhancement.
-1. **Create a PR.** Assign it to folks with expertise in that domain to help
-   sponsor the process.
-
-The `Metadata` section above is intended to support the creation of tooling
-around the enhancement process.
-
-Make sure that the enhancement covers all scenarios that are relevant:
-- REST API and Kubernetes API
-- Late-binding and bind-on-discovery
-- SNO, multinode, compact, and 3+1 clusters
-- Day1 (cluster installation) and day2 (adding hosts to an installed cluster)
-- Day2 both for installed clusters and imported clusters
-- Observability: feature usage, events, status info, etc.
-- Network configuration: static networking vs DHCP, IPv4/v6/dual-stack
-- Supported platforms (e.g., baremetal, none, vsphere, nutanix)
-- Supported CPU architectures
-- Feature support based on OCP version
-- OLM operators
-- Agent upgrade
+# Support 2 Node + 1 Arbiter Node HA Cluster
 
 ## Summary
 
-The `Summary` section is incredibly important for producing high quality
-user-focused documentation such as release notes or a development roadmap. It
-should be possible to collect this information before implementation begins in
-order to avoid requiring implementors to split their attention between writing
-release notes and implementing the feature itself.
-
-A good summary is probably at least a paragraph in length.
+This enhancement describes the ability to install TNA (Two Nodes + Arbiter)
+clusters - OpenShift clusters with control planes that consists of at minimum
+2 normal-sized nodes, and at least 1 node that can be less powerful than the
+recommended node size.
+Arbiter nodes will only be running critical components for maintaining 
+HA (e.g etcd) to allow the arbiter node size to be as small and as low cost as
+possible within reason.
 
 ## Motivation
 
-This section is for explicitly listing the motivation, goals and non-goals of
-this proposal. Describe why the change is important and the benefits to users.
+Customers at the edge are requiring a more economical solution for HA deployments
+at the edge. They can support running 2 node clusters for redundancy but would like 
+the option to deploy a lower cost node as an arbiter to supply the 3 nodes for etcd quorum.
 
 ### Goals
 
-List the specific goals of the proposal. How will we know that this has succeeded?
+- Allow for a TNA cluster to be installed.
 
 ### Non-Goals
 
-What is out of scope for this proposal? Listing non-goals helps to focus discussion
-and make progress.
+- Moving from 2 + 1 to a conventional 3 node cluster.
 
 ## Proposal
 
-This is where we get down to the nitty gritty of what the proposal actually is.
+This enhancement will include the following:
+- In the API we will:
+  - Add a new host_role for arbiter.
+  - Add a new high_availability_mode for TNA.
+  - Deprecate the existing parameters and create new ones for hyperthreading
+    and disk encryption (they will be maps of host_role to bool).
+  - Add a new feature_support_level_id for TNA.
+- We will update the clusters' validations and transitions for TNA clusters.
+- We will add arbiter nodes' minimum requirements for clusters and per operator.
+- We will auto-assign the arbiter role to a host.
 
 ### User Stories
 
-Detail the things that people will be able to do if this is implemented.
-Include as much detail as possible so that people can understand the "how" of
-the system. The goal here is to make this feel real for users without getting
-bogged down.
+- As a solutions architect for a retail organization, I want to deploy OpenShift
+  at n number of store locations at the edge with only 2 regular sized nodes and
+  1 lower cost node to maintain HA and keep compute costs down.
+- As a solutions architect for cloud infrastructures, I want to offer low cost
+  OpenShift deployments on purpose built hardware for a 2 + 1 configuration.
+- As an OpenShift cluster admin I want non-critical applications deployed to my
+  2 + 1 arbiter node cluster to not be scheduled to run on the arbiter node.
 
-Include a story on how this proposal will be deployed in production: 
-lifecycle, monitoring and scale requirements or benefits.
+### Implementation Details/Notes/Constraints
 
-#### Story 1
+Our validations will need to be updated as follows:
+- A host can only be assigned the arbiter role if the cluster is TNA.
+- TNA clusters must have at least 1 arbiter node.
+- TNA clusters can have 2-5 control plane nodes.
+- TNA clusters' platform must be baremetal.
+- TNA clusters are expected to be TP stating from OCP 4.19.
 
-#### Story 2
+We need to add arbiter's hardware requirements in:
+- The HW_VALIDATOR_REQUIREMENTS environment variable (by default we'll take
+  the worker's requirements to avoid issues mid-development).
+- The HostTypeHardwareRequirementsWrapper structs used by the operators.
 
-### Implementation Details/Notes/Constraints [optional]
+We will auto-assign the arbiter role to a host if the following are true:
+- The host's cluster is TNA.
+- The host's cluster has no arbiter nodes.
+- The host has the minimum hardware requirements for arbiter nodes.
 
-What are the caveats to the implementation? What are some important details that
-didn't come across above. Go in to as much detail as necessary here. This might
-be a good place to talk about core concepts and how they relate.
+Outside of assisted-service, we also need to do the following:
+- After we update the API in assisted-services, we need to update the vendor
+  directory in assisted-installer-agent.
+- We need to update the function ListMasterNodes in assisted-installer to
+  also get arbiter nodes.
 
-This is an excellent place to call out changes that need to be made in projects
-other than openshift/assisted-service. For example, if a change will need to be
-made in the agent (openshift/assisted-installer-agent) and the installer
-(openshift/assisted-installer; it should be mentioned here.
+Until we have this feature fully implemented, we should have an environment
+variable to decide if we allow TNA clusters (default value is false).
 
 ### Risks and Mitigations
 
-What are the risks of this proposal and how do we mitigate. Think broadly. For
-example, consider both security and how this will impact the larger OKD
-ecosystem. 
+The main risk in this enhancement is that because we are treating one of the
+master nodes in a 3 node cluster as an arbiter, we are explicitly evicting
+processes that would otherwise be a normal supported upstream configuration
+such as a compact cluster. We run the risk of new components being critical to
+HA not containing the proper tolerations for running on the arbiter node. One
+of the mitigations we can take against that is to make sure we are testing
+installs.
 
-Will choices made here affect adoption of assisted-installer?
-Will this work make it harder to integrate with other upstream projects?
-How will security be reviewed and by whom? How will UX be reviewed and by whom?
+A couple of risks we run is customers using arbiter nodes with improper disk
+speeds below that recommended for etcd, or a bigger problem being network
+latency. Since etcd is sensitive to latency between members, we should
+validate that arbiter nodes meet minimum requirements for ETCD to function
+properly, in disk and network speeds.
 
-Consider including folks that also work outside your immediate sub-project.
-
-## Design Details [optional]
-
-If an enhancement is complex enough, design details should be included. When not
-included, reviewers reserve the right to ask for this section to be filled in to
-enable more thoughtful discussion about the enhancement and it's impact.
+## Design Details
 
 ### Open Questions
 
-This is where to call out areas of the design that require closure before deciding
-to implement the design.  For instance,
- > 1. This requires exposing previously private resources which contain sensitive
-  information.  Can we do this?
+N/A
 
 ### UI Impact
 
-No need to go into great detail about the UI changes that will need to be made.
-However, this is an excellent time to mention 1) if UI changes are required if
-this enhancement were accepted and 2) at a high-level what those UI changes
-would be.
+The main change is that currently the UI relies on the user specifying the
+number of control plane in order to set the high_availability_mode, but TNA
+cluster can have 2-5 control planes so we should ask for it explicitly and
+validate it with the number of control planes.
 
 ### Test Plan
 
-Consider the following in developing a test plan for this enhancement:
-- Will there be e2e and integration tests, in addition to unit tests?
-- How will it be tested in isolation vs with other components?
-
-No need to outline all of the test cases, just the general strategy. Anything
-that would count as tricky in the implementation and anything particularly
-challenging to test should be called out.
-
+- Add an e2e test that will create a TNA cluster.
+- Add unit tests and subsystem tests for arbiter nodes and TNA clusters.
 
 ## Drawbacks
 
-The idea is to find the best form of an argument why this enhancement should _not_ be implemented.
+A few drawbacks we have is that we will be creating a new variant of OpenShift
+that implements a new unique way of doing HA for kubernetes. This does mean
+an increase in the test matrix. We will also need to keep the option of arbiter
+nodes in mind for future features and operators and make sure it's supported.
 
 ## Alternatives
 
-Similar to the `Drawbacks` section the `Alternatives` section is used to
-highlight and record other possible approaches to delivering the value proposed
-by an enhancement.
+We originally had tried using the pre-existing features in OCP, such as setting
+a node as NoSchedule to avoid customer workloads going on the arbiter node.
+While this whole worked as expected, the problem we faced is that the desire
+is to use a device that is lower power and is cheaper as the arbiter. This
+method would still run most of the OCP overhead on the arbiter node.

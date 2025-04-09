@@ -1,10 +1,11 @@
-module github.com/giladravid16/assisted-service
+module github.com/openshift/assisted-service
 
 go 1.21
 
 require (
 	github.com/IBM/netaddr v1.5.0
 	github.com/NYTimes/gziphandler v1.1.1
+	github.com/PuerkitoBio/rehttp v1.4.0
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 	github.com/aws/aws-sdk-go v1.49.13
