@@ -205,7 +205,7 @@ func GenerateL2ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 						Connectivity: createConnectivityReport(),
 					},
 				}
-				ret, err := CreateL2MajorityGroup(net1CIDR, hosts)
+				ret, err := CreateL2MajorityGroup(net1CIDR, hosts, 3)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(ret).To(Equal([]strfmt.UUID{}))
 			})
@@ -221,7 +221,7 @@ func GenerateL2ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 						ID: nodes[2].id,
 					},
 				}
-				ret, err := CreateL2MajorityGroup(net1CIDR, hosts)
+				ret, err := CreateL2MajorityGroup(net1CIDR, hosts, 3)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(ret).To(Equal([]strfmt.UUID{}))
 			})
@@ -243,7 +243,7 @@ func GenerateL2ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 					Connectivity: createConnectivityReport(),
 				},
 			}
-			ret, err := CreateL2MajorityGroup(net1CIDR, hosts)
+			ret, err := CreateL2MajorityGroup(net1CIDR, hosts, 3)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(ret).To(Equal([]strfmt.UUID{}))
 		})
@@ -268,7 +268,7 @@ func GenerateL2ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 						createL2Remote(nodes[1], l2LinkNet1)),
 				},
 			}
-			ret, err := CreateL2MajorityGroup(net1CIDR, hosts)
+			ret, err := CreateL2MajorityGroup(net1CIDR, hosts, 3)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(ret).To(HaveLen(3))
 			Expect(ret).To(ContainElement(*nodes[0].id))
@@ -296,7 +296,7 @@ func GenerateL2ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 						createL2Remote(nodes[1], l2LinkNet2)),
 				},
 			}
-			ret, err := CreateL2MajorityGroup(net1CIDR, hosts)
+			ret, err := CreateL2MajorityGroup(net1CIDR, hosts, 3)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(ret).To(Equal([]strfmt.UUID{}))
 		})
@@ -331,13 +331,13 @@ func GenerateL2ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 						createL2Remote(nodes[1], l2LinkNet2)),
 				},
 			}
-			ret, err := CreateL2MajorityGroup(net1CIDR, hosts)
+			ret, err := CreateL2MajorityGroup(net1CIDR, hosts, 3)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(ret).To(HaveLen(3))
 			Expect(ret).To(ContainElement(*nodes[0].id))
 			Expect(ret).To(ContainElement(*nodes[1].id))
 			Expect(ret).To(ContainElement(*nodes[2].id))
-			ret, err = CreateL2MajorityGroup(net2CIDR, hosts)
+			ret, err = CreateL2MajorityGroup(net2CIDR, hosts, 3)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(ret).To(HaveLen(3))
 			Expect(ret).To(ContainElement(*nodes[0].id))
@@ -394,7 +394,7 @@ func GenerateL2ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 						createL2Remote(nodes[5], l2LinkNet1)),
 				},
 			}
-			ret, err := CreateL2MajorityGroup(net1CIDR, hosts)
+			ret, err := CreateL2MajorityGroup(net1CIDR, hosts, 3)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(ret).To(HaveLen(4))
 			Expect(ret).To(ContainElement(*nodes[3].id))
@@ -452,7 +452,7 @@ func GenerateL2ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 						createL2Remote(nodes[5], unL2LinkNet1)),
 				},
 			}
-			ret, err := CreateL2MajorityGroup(net1CIDR, hosts)
+			ret, err := CreateL2MajorityGroup(net1CIDR, hosts, 3)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(ret).To(HaveLen(3))
 			Expect(ret).To(ContainElement(*nodes[0].id))
@@ -506,7 +506,7 @@ func GenerateL2ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 						createL2Remote(nodes[5], unL2LinkNet1)),
 				},
 			}
-			ret, err := CreateL2MajorityGroup(net1CIDR, hosts)
+			ret, err := CreateL2MajorityGroup(net1CIDR, hosts, 3)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(ret).To(HaveLen(3))
 			Expect(ret).To(ContainElement(*nodes[3].id))
@@ -547,7 +547,7 @@ var _ = Describe("L2 Ipv6 with L3 fallback", func() {
 		}
 	})
 	It("Missing L2 connectivity", func() {
-		ret, err := CreateL2MajorityGroup(net1CIDR, hosts)
+		ret, err := CreateL2MajorityGroup(net1CIDR, hosts, 3)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(ret).To(HaveLen(0))
 	})
@@ -556,7 +556,7 @@ var _ = Describe("L2 Ipv6 with L3 fallback", func() {
 		hosts[2].Connectivity = createConnectivityReport(
 			createL2Remote(nodes[0], l2LinkNet1),
 			createL3Remote(nodes[1], l3LinkNet1))
-		ret, err := CreateL2MajorityGroup(net1CIDR, hosts)
+		ret, err := CreateL2MajorityGroup(net1CIDR, hosts, 3)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(ret).To(HaveLen(3))
 		Expect(ret).To(ContainElement(*nodes[0].id))
@@ -610,7 +610,7 @@ func GenerateL3ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 						Inventory:    makeInventory(nodes[2]),
 					},
 				}
-				ret, err := CreateL3MajorityGroup(hosts, family)
+				ret, err := CreateL3MajorityGroup(hosts, family, 3)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(ret).To(Equal([]strfmt.UUID{}))
 			})
@@ -629,7 +629,7 @@ func GenerateL3ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 						Inventory: makeInventory(nodes[2]),
 					},
 				}
-				ret, err := CreateL3MajorityGroup(hosts, family)
+				ret, err := CreateL3MajorityGroup(hosts, family, 3)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(ret).To(Equal([]strfmt.UUID{}))
 			})
@@ -653,7 +653,7 @@ func GenerateL3ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 						Inventory:    makeInventory(nodes[2]),
 					},
 				}
-				ret, err := CreateL3MajorityGroup(hosts, family)
+				ret, err := CreateL3MajorityGroup(hosts, family, 3)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(ret).To(Equal([]strfmt.UUID{}))
 			})
@@ -681,7 +681,7 @@ func GenerateL3ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 						Inventory: makeInventory(nodes[2]),
 					},
 				}
-				ret, err := CreateL3MajorityGroup(hosts, family)
+				ret, err := CreateL3MajorityGroup(hosts, family, 3)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(ret).To(HaveLen(0))
 			})
@@ -709,7 +709,7 @@ func GenerateL3ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 						Inventory: makeInventory(nodes[2]),
 					},
 				}
-				ret, err := CreateL3MajorityGroup(hosts, family)
+				ret, err := CreateL3MajorityGroup(hosts, family, 3)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(ret).To(HaveLen(3))
 				Expect(ret).To(ContainElement(*nodes[0].id))
@@ -740,7 +740,7 @@ func GenerateL3ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 						Inventory: makeInventory(nodes[2]),
 					},
 				}
-				ret, err := CreateL3MajorityGroup(hosts, family)
+				ret, err := CreateL3MajorityGroup(hosts, family, 3)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(ret).To(HaveLen(0))
 			})
@@ -779,7 +779,7 @@ func GenerateL3ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 						Inventory: makeInventory(nodes[3]),
 					},
 				}
-				ret, err := CreateL3MajorityGroup(hosts, family)
+				ret, err := CreateL3MajorityGroup(hosts, family, 3)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(ret).To(HaveLen(4))
 				Expect(ret).To(ContainElement(*nodes[0].id))
@@ -823,7 +823,7 @@ func GenerateL3ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 						Inventory: makeInventory(nodes[3]),
 					},
 				}
-				ret, err := CreateL3MajorityGroup(hosts, family)
+				ret, err := CreateL3MajorityGroup(hosts, family, 3)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(ret).To(HaveLen(4))
 				Expect(ret).To(ContainElement(*nodes[0].id))
@@ -864,7 +864,7 @@ func GenerateL3ConnectivityGroupTests(ipV4 bool, net1CIDR, net2CIDR string) {
 						Inventory: makeInventory(nodes[3]),
 					},
 				}
-				ret, err := CreateL3MajorityGroup(hosts, family)
+				ret, err := CreateL3MajorityGroup(hosts, family, 3)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(ret).To(HaveLen(3))
 				Expect(ret).To(ContainElement(*nodes[0].id))

@@ -236,9 +236,9 @@ func (c *connectivityGroupList) addOrMergeGroup(cg *connectivityGroup) {
 	}
 }
 
-func (c *connectivityGroupList) largestGroup() *connectivityGroup {
+func (c *connectivityGroupList) largestGroup(minGroupSize int) *connectivityGroup {
 	size := c.biggestGroupSize()
-	if size < 3 {
+	if size < minGroupSize {
 		return nil
 	}
 	groupsBySize := c.groupsBySize[size]
@@ -298,7 +298,7 @@ func (m *majorityGroupCalculator) createFullMeshGroup(groupCandidates []*groupCa
 
 	// The primary groups are used for intersection with group candidate which is not full mesh
 	primaryGroups := groupList.setAndMergePrimaryGroups()
-	for groupCandidate := groupList.largestGroup(); groupCandidate != nil; groupCandidate = groupList.largestGroup() {
+	for groupCandidate := groupList.largestGroup(m.minGroupSize); groupCandidate != nil; groupCandidate = groupList.largestGroup(m.minGroupSize) {
 		if groupCandidate.isFullMesh() {
 			return groupCandidate
 		}
@@ -323,8 +323,8 @@ func (m *majorityGroupCalculator) createFullMeshGroup(groupCandidates []*groupCa
 				intersectedGroup := groupCandidate.intersect(pg)
 
 				// Groups have to be smaller than the existing size since it was already checked,
-				// and greater than 3 (minimal number of hosts for a cluster).
-				if intersectedGroup.size() >= 3 && intersectedGroup.size() < currentSize {
+				// and greater than the minimum group size.
+				if intersectedGroup.size() >= m.minGroupSize && intersectedGroup.size() < currentSize {
 					groupList.addOrMergeGroup(intersectedGroup)
 
 					// If the intersected group is larger than the biggest group size we already have, use this one.
@@ -503,6 +503,7 @@ func newL3QueryFactory(hosts []*models.Host, family AddressFamily) (hostQueryFac
 type majorityGroupCalculator struct {
 	hostQueryFactory hostQueryFactory
 	numHosts         int
+	minGroupSize     int
 }
 
 /*
@@ -540,7 +541,7 @@ func (m *majorityGroupCalculator) createMajorityGroup(hosts []*models.Host) ([]s
 	candidates := make([]*groupCandidate, 0)
 	for hostIndex := range hosts {
 		candidate := m.createHostGroupCandidate(hostIndex, cMap)
-		if candidate.set.size() >= 3 {
+		if candidate.set.size() >= m.minGroupSize {
 			candidates = append(candidates, candidate)
 		}
 	}
@@ -551,10 +552,11 @@ func (m *majorityGroupCalculator) createMajorityGroup(hosts []*models.Host) ([]s
 	return make([]strfmt.UUID, 0), nil
 }
 
-func calculateMajorityGroup(hosts []*models.Host, factory hostQueryFactory) ([]strfmt.UUID, error) {
+func calculateMajorityGroup(hosts []*models.Host, factory hostQueryFactory, minGroupSize int) ([]strfmt.UUID, error) {
 	calc := &majorityGroupCalculator{
 		hostQueryFactory: factory,
 		numHosts:         len(hosts),
+		minGroupSize:     minGroupSize,
 	}
 	return calc.createMajorityGroup(hosts)
 }
@@ -565,12 +567,12 @@ func calculateMajorityGroup(hosts []*models.Host, factory hostQueryFactory) ([]s
  * It is done by taking a sorted connectivity group list according to the group size, and from this group take the
  * largest one
  */
-func CreateL2MajorityGroup(cidr string, hosts []*models.Host) ([]strfmt.UUID, error) {
+func CreateL2MajorityGroup(cidr string, hosts []*models.Host, minGroupSize int) ([]strfmt.UUID, error) {
 	factory, err := newL2QueryFactory(cidr)
 	if err != nil {
 		return nil, err
 	}
-	return calculateMajorityGroup(hosts, factory)
+	return calculateMajorityGroup(hosts, factory, minGroupSize)
 }
 
 /*
@@ -579,7 +581,7 @@ func CreateL2MajorityGroup(cidr string, hosts []*models.Host) ([]strfmt.UUID, er
  * It is done by taking a sorted connectivity group list according to the group size, and from this group take the
  * largest one
  */
-func CreateL3MajorityGroup(hosts []*models.Host, family AddressFamily) ([]strfmt.UUID, error) {
+func CreateL3MajorityGroup(hosts []*models.Host, family AddressFamily, minGroupSize int) ([]strfmt.UUID, error) {
 	if !funk.Contains([]AddressFamily{IPv4, IPv6}, family) {
 		return nil, errors.Errorf("Unexpected address family %+v", family)
 	}
@@ -587,7 +589,7 @@ func CreateL3MajorityGroup(hosts []*models.Host, family AddressFamily) ([]strfmt
 	if err != nil {
 		return nil, err
 	}
-	return calculateMajorityGroup(hosts, factory)
+	return calculateMajorityGroup(hosts, factory, minGroupSize)
 }
 
 func GatherL3ConnectedAddresses(hosts []*models.Host) (map[strfmt.UUID][]string, error) {

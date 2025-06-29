@@ -21,51 +21,9 @@ import (
 
 func (p *baremetalProvider) AddPlatformToInstallConfig(
 	cfg *installcfg.InstallerConfigBaremetal, cluster *common.Cluster, infraEnvs []*common.InfraEnv) error {
-	// set hosts
-	numHosts := len(cluster.Hosts)
-	hosts := make([]installcfg.Host, numHosts)
-
-	yamlHostIdx := 0
-	sortedHosts := make([]*models.Host, numHosts)
-	copy(sortedHosts, cluster.Hosts)
-	sort.Slice(sortedHosts, func(i, j int) bool {
-		// sort logic: masters then arbiters then workers, between themselves - by hostname
-		if sortedHosts[i].Role != sortedHosts[j].Role {
-			if sortedHosts[i].Role == models.HostRoleMaster {
-				return true
-			}
-			if sortedHosts[j].Role == models.HostRoleMaster {
-				return false
-			}
-			return sortedHosts[i].Role == models.HostRoleArbiter
-		}
-		return hostutil.GetHostnameForMsg(sortedHosts[i]) < hostutil.GetHostnameForMsg(sortedHosts[j])
-	})
-
-	for _, host := range sortedHosts {
-		hostName := hostutil.GetHostnameForMsg(host)
-		p.Log.Infof("Host name is %s", hostName)
-		hosts[yamlHostIdx].Name = hostName
-		hosts[yamlHostIdx].Role = string(host.Role)
-
-		var inventory models.Inventory
-		err := json.Unmarshal([]byte(host.Inventory), &inventory)
-		if err != nil {
-			p.Log.Warnf("Failed to unmarshall Host %s inventory", hostutil.GetHostnameForMsg(host))
-			return err
-		}
-
-		macAddress, err := p.getHostMachineNetworkInterfaceMACAddress(cluster, &inventory)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get host %s machine network interface MAC address", lo.FromPtr(host.ID))
-		}
-		hosts[yamlHostIdx].BootMACAddress = lo.FromPtr(macAddress)
-
-		hosts[yamlHostIdx].BootMode = "UEFI"
-		if inventory.Boot != nil && inventory.Boot.CurrentBootMode != "uefi" {
-			hosts[yamlHostIdx].BootMode = "legacy"
-		}
-		yamlHostIdx += 1
+	hosts, err := p.getInstallConfigHosts(cluster)
+	if err != nil {
+		return err
 	}
 
 	enableMetal3Provisioning, err := common.VersionGreaterOrEqual(cluster.Cluster.OpenshiftVersion, "4.7")
@@ -123,6 +81,81 @@ func (p *baremetalProvider) AddPlatformToInstallConfig(
 	}
 
 	return nil
+}
+
+func (p *baremetalProvider) getInstallConfigHosts(cluster *common.Cluster) ([]installcfg.Host, error) {
+	numHosts := len(cluster.Hosts)
+	hosts := make([]installcfg.Host, numHosts)
+
+	// The hosts should not be included under the platform when installing TNF
+	//if common.IsClusterTopologyTwoNodesWithFencing(cluster) {
+	//	return hosts, nil
+	//}
+
+	yamlHostIdx := 0
+	sortedHosts := make([]*models.Host, numHosts)
+	copy(sortedHosts, cluster.Hosts)
+	sort.Slice(sortedHosts, func(i, j int) bool {
+		// sort logic: masters then arbiters then workers, between themselves - by hostname
+		if sortedHosts[i].Role != sortedHosts[j].Role {
+			if sortedHosts[i].Role == models.HostRoleMaster {
+				return true
+			}
+			if sortedHosts[j].Role == models.HostRoleMaster {
+				return false
+			}
+			return sortedHosts[i].Role == models.HostRoleArbiter
+		}
+		return hostutil.GetHostnameForMsg(sortedHosts[i]) < hostutil.GetHostnameForMsg(sortedHosts[j])
+	})
+
+	for _, host := range sortedHosts {
+		hostName := hostutil.GetHostnameForMsg(host)
+		p.Log.Infof("Host name is %s", hostName)
+		hosts[yamlHostIdx].Name = hostName
+		hosts[yamlHostIdx].Role = string(host.Role)
+
+		var inventory models.Inventory
+		err := json.Unmarshal([]byte(host.Inventory), &inventory)
+		if err != nil {
+			p.Log.Warnf("Failed to unmarshall Host %s inventory", hostutil.GetHostnameForMsg(host))
+			return hosts, err
+		}
+
+		macAddress, err := p.getHostMachineNetworkInterfaceMACAddress(cluster, &inventory)
+		if err != nil {
+			return hosts, errors.Wrapf(err, "failed to get host %s machine network interface MAC address", lo.FromPtr(host.ID))
+		}
+		hosts[yamlHostIdx].BootMACAddress = lo.FromPtr(macAddress)
+
+		hosts[yamlHostIdx].BootMode = "UEFI"
+		if inventory.Boot != nil && inventory.Boot.CurrentBootMode != "uefi" {
+			hosts[yamlHostIdx].BootMode = "legacy"
+		}
+
+		if common.IsClusterTopologyTwoNodesWithFencing(cluster) {
+			hostFencingCredentials := models.FencingCredentialsParams{}
+			if err := json.Unmarshal([]byte(host.FencingCredentials), &hostFencingCredentials); err != nil {
+				p.Log.WithError(err).Errorf("failed to unmarshal the fencing credentials of host %s", host.ID.String())
+				return hosts, err
+			}
+			disableCertificateVerification := false
+			if swag.StringValue(hostFencingCredentials.CertificateVerification) == "Disabled" {
+				disableCertificateVerification = true
+			}
+			hosts[yamlHostIdx].BMC = installcfg.BMC{
+				Username:                       *hostFencingCredentials.Username,
+				Password:                       *hostFencingCredentials.Password,
+				Address:                        *hostFencingCredentials.Address,
+				DisableCertificateVerification: disableCertificateVerification,
+			}
+		}
+
+		yamlHostIdx += 1
+	}
+	p.Log.Infof("hosts: %v", hosts)
+
+	return hosts, nil
 }
 
 func (p *baremetalProvider) getHostMachineNetworkInterfaceMACAddress(cluster *common.Cluster, inventory *models.Inventory) (*string, error) {
