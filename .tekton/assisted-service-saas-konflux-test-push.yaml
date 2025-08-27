@@ -27,8 +27,6 @@ spec:
       value: Dockerfile.assisted-service
     - name: path-context
       value: .
-    - name: build-image-index
-      value: "false"
   pipelineRef:
     resolver: git
     params:
