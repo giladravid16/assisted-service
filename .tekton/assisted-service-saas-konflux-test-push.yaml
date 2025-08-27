@@ -31,11 +31,11 @@ spec:
     resolver: git
     params:
       - name: url
-        value: "https://github.com/giladravid16/konflux-pipelines.git"
+        value: "https://github.com/openshift-assisted/assisted-installer-konflux-pipelines.git"
       - name: revision
         value: main
       - name: pathInRepo
-        value: "pipelines/service-component-pipeline.yaml"
+        value: "pipelines/product-component-pipeline.yaml"
   taskRunTemplate:
     serviceAccountName: build-pipeline-assisted-service-saas-konflux-test
   workspaces:
