@@ -77,7 +77,7 @@ var _ = Describe("NewOSImages", func() {
 	})
 })
 
-var _ = Describe("GetOsImage", func() {
+var _ = Describe("GetOsImageByOpenshiftVersion", func() {
 	var (
 		images OSImages
 	)
@@ -90,39 +90,39 @@ var _ = Describe("GetOsImage", func() {
 		})
 
 		It("fails for an unsupported version", func() {
-			image, err := images.GetOsImage("unsupported", common.TestDefaultConfig.CPUArchitecture)
+			image, err := images.GetOsImageByOpenshiftVersion("unsupported", common.TestDefaultConfig.CPUArchitecture)
 			Expect(err).Should(HaveOccurred())
 			Expect(image).Should(BeNil())
 		})
 
 		It("fails for an unsupported cpuArchitecture", func() {
-			image, err := images.GetOsImage(common.TestDefaultConfig.OpenShiftVersion, "unsupported")
+			image, err := images.GetOsImageByOpenshiftVersion(common.TestDefaultConfig.OpenShiftVersion, "unsupported")
 			Expect(err).Should(HaveOccurred())
 			Expect(image).Should(BeNil())
 			Expect(err.Error()).To(ContainSubstring("isn't specified in OS images list"))
 		})
 
 		It("empty architecture fallback to default", func() {
-			image, err := images.GetOsImage("4.9", "")
+			image, err := images.GetOsImageByOpenshiftVersion("4.9", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(image.CPUArchitecture).To(HaveValue(Equal(common.DefaultCPUArchitecture)))
 		})
 
 		It("multiarch returns error", func() {
-			image, err := images.GetOsImage("4.11", common.MultiCPUArchitecture)
+			image, err := images.GetOsImageByOpenshiftVersion("4.11", common.MultiCPUArchitecture)
 			Expect(err).Should(HaveOccurred())
 			Expect(image).Should(BeNil())
 			Expect(err.Error()).To(ContainSubstring("isn't specified in OS images list"))
 		})
 
 		It("fetch OS image by major.minor", func() {
-			image, err := images.GetOsImage("4.9", common.DefaultCPUArchitecture)
+			image, err := images.GetOsImageByOpenshiftVersion("4.9", common.DefaultCPUArchitecture)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(image.OpenshiftVersion).To(HaveValue(Equal("4.9")))
 		})
 
 		It("With normalizing the CPU architecture", func() {
-			image, err := images.GetOsImage("4.9", common.AARCH64CPUArchitecture)
+			image, err := images.GetOsImageByOpenshiftVersion("4.9", common.AARCH64CPUArchitecture)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(image.Version).To(HaveValue(Equal("version-49.123-0_arm64")))
 			Expect(*image.CPUArchitecture).To(Equal(common.ARM64CPUArchitecture))
@@ -133,7 +133,7 @@ var _ = Describe("GetOsImage", func() {
 				architectures := images.GetCPUArchitectures(version)
 
 				for _, architecture := range architectures {
-					image, err := images.GetOsImage(version, architecture)
+					image, err := images.GetOsImageByOpenshiftVersion(version, architecture)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					for _, rhcos := range defaultOsImages {
@@ -168,13 +168,13 @@ var _ = Describe("GetOsImage", func() {
 		})
 
 		It("finds latest patch version by X.Y when given X.Y.Z", func() {
-			image, err := images.GetOsImage("4.10.1", common.DefaultCPUArchitecture)
+			image, err := images.GetOsImageByOpenshiftVersion("4.10.1", common.DefaultCPUArchitecture)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(image.OpenshiftVersion).To(HaveValue(Equal("4.10.10")))
 		})
 
 		It("finds latest patch version by X.Y when given X.Y", func() {
-			image, err := images.GetOsImage("4.10", common.DefaultCPUArchitecture)
+			image, err := images.GetOsImageByOpenshiftVersion("4.10", common.DefaultCPUArchitecture)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(image.OpenshiftVersion).To(HaveValue(Equal("4.10.10")))
 		})
@@ -213,46 +213,31 @@ var _ = Describe("GetLatestOsImage", func() {
 	})
 })
 
-var _ = Describe("GetOsImageOrLatest", func() {
-	var (
-		images OSImages
-	)
+var _ = Describe("GetOsImageByRhcosVersion", func() {
+	var images OSImages
 
 	BeforeEach(func() {
 		var err error
 		images, err = NewOSImages(defaultOsImages, imageServiceEnabled)
-		Expect(err).To(BeNil())
+		Expect(err).ShouldNot(HaveOccurred())
 	})
 
-	It("successfully gets an OS image with a valid openshift version and cpu architecture", func() {
-		image, err := images.GetOsImageOrLatest("4.9", common.TestDefaultConfig.CPUArchitecture)
-		Expect(err).To(BeNil())
+	It("returns OS image for matching RHCOS version and architecture", func() {
+		image, err := images.GetOsImageByRhcosVersion("version-49.123-0", common.X86CPUArchitecture)
+		Expect(err).ShouldNot(HaveOccurred())
 		Expect(*image.OpenshiftVersion).Should(Equal("4.9"))
-		Expect(*image.CPUArchitecture).Should(Equal(common.TestDefaultConfig.CPUArchitecture))
+		Expect(*image.Version).Should(Equal("version-49.123-0"))
 	})
 
-	It("successfully gets the latest OS image with a valid cpu architecture", func() {
-		image, err := images.GetOsImageOrLatest("", common.TestDefaultConfig.CPUArchitecture)
-		Expect(err).To(BeNil())
-		Expect(*image.OpenshiftVersion).Should(Equal("4.11.1"))
-		Expect(*image.CPUArchitecture).Should(Equal(common.TestDefaultConfig.CPUArchitecture))
-	})
-
-	It("fails to get OS images for invalid cpu architecture and valid openshift version", func() {
-		image, err := images.GetOsImageOrLatest(common.TestDefaultConfig.OpenShiftVersion, "x866")
-		Expect(err).ToNot(BeNil())
+	It("fails for unsupported RHCOS version", func() {
+		image, err := images.GetOsImageByRhcosVersion("unsupported", common.X86CPUArchitecture)
+		Expect(err).Should(HaveOccurred())
 		Expect(image).Should(BeNil())
 	})
 
-	It("fails to get OS images for invalid cpu architecture and invalid openshift version", func() {
-		image, err := images.GetOsImageOrLatest(common.TestDefaultConfig.OpenShiftVersion, "x866")
-		Expect(err).ToNot(BeNil())
-		Expect(image).Should(BeNil())
-	})
-
-	It("fails to get OS images for invalid cpu architecture and no openshift version", func() {
-		image, err := images.GetOsImageOrLatest("", "x866")
-		Expect(err).ToNot(BeNil())
+	It("fails for unsupported architecture", func() {
+		image, err := images.GetOsImageByRhcosVersion("version-49.123-0", "unsupported")
+		Expect(err).Should(HaveOccurred())
 		Expect(image).Should(BeNil())
 	})
 })
